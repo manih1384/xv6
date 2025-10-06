@@ -187,6 +187,8 @@ struct {
 } input;
 
 #define C(x)  ((x)-'@')  // Control-x
+#define LEFT_ARROW   0xE4    
+#define RIGHT_ARROW 0xE5 
 
 void
 consoleintr(int (*getc)(void))
@@ -207,12 +209,33 @@ consoleintr(int (*getc)(void))
         consputc(BACKSPACE);
       }
       break;
+      
     case C('H'): case '\x7f':  // Backspace
       if(input.e != input.w){
         input.e--;
         consputc(BACKSPACE);
       }
+
+      
+    case C('D'): 
+      
+
       break;
+
+      case C('A'): 
+      
+
+      break;
+
+    case LEFT_ARROW:
+
+        break;
+      
+    case RIGHT_ARROW:
+
+      break;
+
+
     default:
       if(c != 0 && input.e-input.r < INPUT_BUF){
         c = (c == '\r') ? '\n' : c;
