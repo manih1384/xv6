@@ -189,7 +189,8 @@ struct {
 #define C(x)  ((x)-'@')  // Control-x
 #define LEFT_ARROW   0xE4    
 #define RIGHT_ARROW 0xE5 
-int left_key_pressed;
+int left_key_pressed=0;
+int end_of_line=0;
 void
 consoleintr(int (*getc)(void))
 {
@@ -216,15 +217,65 @@ consoleintr(int (*getc)(void))
         consputc(BACKSPACE);
       }
 
-      
-    case C('D'): 
-      
-
       break;
+      
+    case C('D'):
+
+        
+        int pos = input.e;
+
+
+        // here we go to end of the world
+        while ((input.buf[pos % INPUT_BUF] != ' ') && pos<end_of_line)
+            pos++;
+
+
+        // here we skip extra spaces
+            while (input.buf[pos % INPUT_BUF] == ' '){
+            pos++;
+            }
+        int distance = pos - input.e;
+                // cgaputc('0' + distance);
+        for (int i = 0; i < distance; i++)
+            move_cursor_right();
+
+
+        input.e = pos;
+        break;
+    
 
     case C('A'):
 
-      
+         int posA = input.e;
+
+
+
+        while (input.buf[(posA % INPUT_BUF)-1] == ' ' && posA>input.w){
+            posA--;
+            }
+
+
+
+        if ((input.buf[posA % INPUT_BUF] == ' ') && posA>input.w)
+        {
+          posA--;
+        }    
+        while ((input.buf[posA % INPUT_BUF] != ' ') && posA>input.w)
+            posA--;
+
+        if ((input.buf[posA % INPUT_BUF] == ' ') && posA>input.w)
+        {
+          posA++;
+        }   
+        
+
+
+        int distanceA = input.e-posA;
+        for (int i = distanceA; i > 0; i--)
+            move_cursor_left();
+
+
+        input.e = posA;     
 
       break;
 
@@ -234,27 +285,37 @@ consoleintr(int (*getc)(void))
       cgaputc('0' + input.e);
       cgaputc('0' + input.w);
       cgaputc('0' + input.r);
-      cgaputc('0' + left_key_pressed);
+      cgaputc('0' + end_of_line);
       break;
 
     case LEFT_ARROW:
         if (input.w < (input.e))
         {
+          if (left_key_pressed==0)
+          {
+            end_of_line=input.e;
+            left_key_pressed=1;
+          }
+          
+      
           input.e--;
-          left_key_pressed++;
+          
           uartputc('\b');
           move_cursor_left();
         }
         
 
-        break;
+      break;
       
     case RIGHT_ARROW:
-      if(left_key_pressed>0){
-        left_key_pressed--;
+      if(end_of_line>input.e){
         input.e++;
         move_cursor_right();
       }
+      else{
+        end_of_line=input.e;
+        left_key_pressed=0;
+        }
       break;
 
     default:
@@ -264,7 +325,6 @@ consoleintr(int (*getc)(void))
         consputc(c);
         if(c == '\n' || c == C('D') || input.e == input.r+INPUT_BUF){
           input.w = input.e;
-          left_key_pressed=0;
           wakeup(&input.r);
         }
       }
@@ -348,7 +408,7 @@ consoleinit(void)
 
 
 
-void move_cursor_left(){
+void move_cursor_left(void){
   int pos;
 
   // get cursor position
