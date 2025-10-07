@@ -228,7 +228,9 @@ consoleintr(int (*getc)(void))
       break;
 
     case LEFT_ARROW:
-
+        input.e--;
+        uartputc('\b');
+        move_cursor_visually();
         break;
       
     case RIGHT_ARROW:
@@ -320,3 +322,28 @@ consoleinit(void)
   ioapicenable(IRQ_KBD, 0);
 }
 
+
+
+
+
+
+
+void move_cursor_visually(){
+  int pos;
+
+  // get cursor position
+  outb(CRTPORT, 14);
+  pos = inb(CRTPORT+1) << 8;
+  outb(CRTPORT, 15);
+  pos |= inb(CRTPORT+1);
+
+  // move back
+  if(pos>0)
+    pos--;
+
+  // reset cursor
+  outb(CRTPORT, 14);
+  outb(CRTPORT+1, pos>>8);
+  outb(CRTPORT, 15);
+  outb(CRTPORT+1, pos);
+}
