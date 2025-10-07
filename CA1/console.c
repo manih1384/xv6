@@ -189,7 +189,7 @@ struct {
 #define C(x)  ((x)-'@')  // Control-x
 #define LEFT_ARROW   0xE4    
 #define RIGHT_ARROW 0xE5 
-
+int left_key_pressed;
 void
 consoleintr(int (*getc)(void))
 {
@@ -222,21 +222,40 @@ consoleintr(int (*getc)(void))
 
       break;
 
-      case C('A'): 
+    case C('A'):
+
       
 
+      break;
+
+
+    case C('E'):
+    // i added it here to help debugging.
+      cgaputc('0' + input.e);
+      cgaputc('0' + input.w);
+      cgaputc('0' + input.r);
+      cgaputc('0' + left_key_pressed);
       break;
 
     case LEFT_ARROW:
-        input.e--;
-        uartputc('\b');
-        move_cursor_visually();
+        if (input.w < (input.e))
+        {
+          input.e--;
+          left_key_pressed++;
+          uartputc('\b');
+          move_cursor_left();
+        }
+        
+
         break;
       
     case RIGHT_ARROW:
-
+      if(left_key_pressed>0){
+        left_key_pressed--;
+        input.e++;
+        move_cursor_right();
+      }
       break;
-
 
     default:
       if(c != 0 && input.e-input.r < INPUT_BUF){
@@ -245,6 +264,7 @@ consoleintr(int (*getc)(void))
         consputc(c);
         if(c == '\n' || c == C('D') || input.e == input.r+INPUT_BUF){
           input.w = input.e;
+          left_key_pressed=0;
           wakeup(&input.r);
         }
       }
@@ -328,7 +348,7 @@ consoleinit(void)
 
 
 
-void move_cursor_visually(){
+void move_cursor_left(){
   int pos;
 
   // get cursor position
@@ -336,8 +356,6 @@ void move_cursor_visually(){
   pos = inb(CRTPORT+1) << 8;
   outb(CRTPORT, 15);
   pos |= inb(CRTPORT+1);
-
-  // move back
   if(pos>0)
     pos--;
 
@@ -346,4 +364,20 @@ void move_cursor_visually(){
   outb(CRTPORT+1, pos>>8);
   outb(CRTPORT, 15);
   outb(CRTPORT+1, pos);
+}
+
+void move_cursor_right(void) {
+    int pos;
+
+    outb(CRTPORT, 14);
+    pos = inb(CRTPORT+1) << 8;
+    outb(CRTPORT, 15);
+    pos |= inb(CRTPORT+1);
+
+    pos++;
+
+    outb(CRTPORT, 14);
+    outb(CRTPORT+1, pos >> 8);
+    outb(CRTPORT, 15);
+    outb(CRTPORT+1, pos);
 }
