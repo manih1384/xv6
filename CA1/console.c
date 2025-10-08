@@ -15,6 +15,9 @@
 #include "proc.h"
 #include "x86.h"
 
+
+int left_key_pressed=0;
+int left_key_pressed_count=0;
 static void consputc(int);
 
 static int panicked = 0;
@@ -142,9 +145,16 @@ cgaputc(int c)
   if(c == '\n')
     pos += 80 - pos%80;
   else if(c == BACKSPACE){
+    for (int i = pos - 1 ; i < pos + left_key_pressed_count ; i++)
+      crt[i] = crt[i + 1];
+
     if(pos > 0) --pos;
-  } else
-    crt[pos++] = (c&0xff) | 0x0700;  // black on white
+  }
+  else{
+    for (int i = pos + left_key_pressed_count; i > pos ; i--)
+      crt[i] = crt[i - 1];
+    crt[pos++] = (c&0xff) | 0x0700; // black on white
+  }
 
   if(pos < 0 || pos > 25*80)
     panic("pos under/overflow");
@@ -159,7 +169,7 @@ cgaputc(int c)
   outb(CRTPORT+1, pos>>8);
   outb(CRTPORT, 15);
   outb(CRTPORT+1, pos);
-  crt[pos] = ' ' | 0x0700;
+  crt[pos+left_key_pressed_count] = ' ' | 0x0700;
 }
 
 void
@@ -189,8 +199,33 @@ struct {
 #define C(x)  ((x)-'@')  // Control-x
 #define LEFT_ARROW   0xE4    
 #define RIGHT_ARROW 0xE5 
-int left_key_pressed=0;
-int end_of_line=0;
+
+
+
+static void shift_buffer_left(void)
+{
+  int cursor= input.e-left_key_pressed_count;
+  for (int i = cursor - 1; i < input.e; i++)
+  {
+    input.buf[(i) % INPUT_BUF] = input.buf[(i + 1) % INPUT_BUF]; // Shift elements to left
+  }
+  input.buf[input.e] = ' ';
+}
+
+static void shift_buffer_right(void)
+{
+   int cursor= input.e-left_key_pressed_count;
+  for (int i = input.e; i > cursor; i--)
+  {
+    input.buf[(i) % INPUT_BUF] = input.buf[(i-1) % INPUT_BUF]; // Shift elements to right
+  }
+}
+
+
+
+
+
+
 void
 consoleintr(int (*getc)(void))
 {
@@ -222,11 +257,11 @@ consoleintr(int (*getc)(void))
     case C('D'):
 
         
-        int pos = input.e;
+        int pos = input.e-left_key_pressed_count;
 
 
         // here we go to end of the world
-        while ((input.buf[pos % INPUT_BUF] != ' ') && pos<end_of_line)
+        while ((input.buf[pos % INPUT_BUF] != ' ') && pos<input.e)
             pos++;
 
 
@@ -234,19 +269,19 @@ consoleintr(int (*getc)(void))
             while (input.buf[pos % INPUT_BUF] == ' '){
             pos++;
             }
-        int distance = pos - input.e;
+        int distance = pos - (input.e-left_key_pressed_count);
                 // cgaputc('0' + distance);
         for (int i = 0; i < distance; i++)
             move_cursor_right();
 
 
-        input.e = pos;
+        left_key_pressed_count = input.e-pos;
         break;
     
 
     case C('A'):
 
-         int posA = input.e;
+         int posA = input.e-left_key_pressed_count;
 
 
 
@@ -270,12 +305,12 @@ consoleintr(int (*getc)(void))
         
 
 
-        int distanceA = input.e-posA;
+        int distanceA = input.e-left_key_pressed_count-posA;
         for (int i = distanceA; i > 0; i--)
             move_cursor_left();
 
 
-        input.e = posA;     
+        left_key_pressed_count = input.e-posA;     
 
       break;
 
@@ -285,22 +320,22 @@ consoleintr(int (*getc)(void))
       cgaputc('0' + input.e);
       cgaputc('0' + input.w);
       cgaputc('0' + input.r);
-      cgaputc('0' + end_of_line);
       break;
 
     case LEFT_ARROW:
-        if (input.w < (input.e))
+
+
+        int cursor = input.e-left_key_pressed_count;
+
+        if (input.w < cursor)
         {
           if (left_key_pressed==0)
           {
-            end_of_line=input.e;
             left_key_pressed=1;
           }
           
       
-          input.e--;
-          
-          uartputc('\b');
+          left_key_pressed_count++;
           move_cursor_left();
         }
         
@@ -308,12 +343,14 @@ consoleintr(int (*getc)(void))
       break;
       
     case RIGHT_ARROW:
-      if(end_of_line>input.e){
-        input.e++;
+
+      int cursor1 = input.e-left_key_pressed_count;
+
+      if(input.e>cursor1){
+        left_key_pressed_count--;
         move_cursor_right();
       }
       else{
-        end_of_line=input.e;
         left_key_pressed=0;
         }
       break;
@@ -321,9 +358,15 @@ consoleintr(int (*getc)(void))
     default:
       if(c != 0 && input.e-input.r < INPUT_BUF){
         c = (c == '\r') ? '\n' : c;
+
         input.buf[input.e++ % INPUT_BUF] = c;
+
+
+    
         consputc(c);
         if(c == '\n' || c == C('D') || input.e == input.r+INPUT_BUF){
+          left_key_pressed=0;
+          left_key_pressed_count=0;
           input.w = input.e;
           wakeup(&input.r);
         }
