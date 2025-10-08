@@ -130,16 +130,20 @@ runcmd(struct cmd *cmd)
   exit();
 }
 
-int
-getcmd(char *buf, int nbuf)
+int getcmd(char *buf, int nbuf)
 {
-  printf(2, "$ ");
-  memset(buf, 0, nbuf);
-  gets(buf, nbuf);
-  if(buf[0] == 0) // EOF
-    return -1;
-  return 0;
+    printf(2, "$ ");
+    memset(buf, 0, nbuf);
+    gets(buf, nbuf);
+
+    if(buf[0] == 0) // EOF
+        return -1;
+
+
+
+    return 0;
 }
+
 
 int
 main(void)
