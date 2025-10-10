@@ -14,9 +14,10 @@
 #include "mmu.h"
 #include "proc.h"
 #include "x86.h"
+
+
 int left_key_pressed=0;
 int left_key_pressed_count=0;
-int tab_pressed=0; // note i havent add the part where you make tab pressed zero again yet you can only set it to 1 once andd dont change it 
 static void consputc(int);
 
 static int panicked = 0;
@@ -195,17 +196,6 @@ struct {
   uint e;  // Edit index
 } input;
 
-
-void print_array(char *buffer){
-      for (int i = 0; i < input.e; i++)
-    {
-      cgaputc(buffer[i]);
-    }
-}
-
-
-
-
 #define C(x)  ((x)-'@')  // Control-x
 #define LEFT_ARROW   0xE4    
 #define RIGHT_ARROW 0xE5 
@@ -232,136 +222,13 @@ static void shift_buffer_right(void)
 }
 
 
-#define INPUT_BUF 128
-#define MAX_COMMANDS 64
 
-// static int tab_press_count = 0;
-// static char last_prefix[INPUT_BUF] = {0};
-
-
-
-// void
-// get_current_input(char *dest)
-// {
-//   int len = input.e - input.w;               
-//   int i;
-
-
-//   // edge cases
-//   if (len < 0) len = 0;                 
-//   if (len > INPUT_BUF - 1) len = INPUT_BUF - 1; 
-
-//   for (i = 0; i < len; i++) {
-//     dest[i] = input.buf[(input.w + i) % INPUT_BUF];
-//   }
-//   dest[i] = '\0';
-// }
-
-
-
-
-// // match two strings to check if they are exactly the same.
-// int streq(const char *a, const char *b) {
-//     while (*a && *b) {
-//         if (*a != *b) return 0;
-//         a++; b++;
-//     }
-//     return *a == *b;
-// }
-
-// int find_all_matches(const char *prefix, char matches[][INPUT_BUF]) {
-//     int match_count = 0;
-//     int prefix_len = strlen(prefix);
-
-//     // 1. Match builtin commands
-//     const char *builtin_cmds[] = {"cd"};
-//     int num_builtin = sizeof(builtin_cmds)/sizeof(builtin_cmds[0]);
-//     for (int i = 0; i < num_builtin; i++) {
-//         if (strncmp(prefix, builtin_cmds[i], prefix_len) == 0) {
-//             safestrcpy(matches[match_count++], builtin_cmds[i], INPUT_BUF);
-//         }
-//     }
-
-//     // 2. Match user programs in root directory (kernel-side)
-//     struct inode *dp;
-//     struct dirent de;
-//     if ((dp = namei("/")) == 0)
-//         return match_count; // root not found
-//     ilock(dp);
-
-//     for (uint off = 0; off < dp->size; off += sizeof(de)) {
-//         if (readi(dp, (char*)&de, off, sizeof(de)) != sizeof(de))
-//             break;
-//         if (de.inum == 0) 
-//             continue;
-//         if (streq(de.name, ".") || streq(de.name, ".."))
-//             continue;
-//         if (strncmp(prefix, de.name, prefix_len) == 0) {
-//             safestrcpy(matches[match_count++], de.name, INPUT_BUF);
-//             if (match_count >= MAX_COMMANDS)
-//                 break;
-//         }
-//     }
-
-//     iunlockput(dp);
-//     return match_count;
-// }
-
-
-
-
-// void
-// auto_completion(void) {
-//     char current_input[INPUT_BUF];
-//     char prefix[INPUT_BUF];
-//     char matches[MAX_COMMANDS][INPUT_BUF];
-//     int match_count = 0;
-//     int i, start = 0;
-
-
-//     memset(current_input, 0, sizeof(current_input));
-//     memset(prefix, 0, sizeof(prefix));
-    
-//     // get current input line from buffer
-//     get_current_input(current_input);
-
-//     // extract the prefix of the current word being typed
-//     for (i = strlen(current_input) - 1; i >= 0; i--) {
-//         if (current_input[i] == ' ') {
-//             start = i + 1;
-//             break;
-//         }
-//     }
-
-//     safestrcpy(prefix, &current_input[start], sizeof(prefix));
-
-//     // reset tab press count if prefix changed
-//     if (strncmp(prefix, last_prefix, sizeof(prefix)) != 0) {
-//         tab_press_count = 0;
-//         safestrcpy(last_prefix, prefix, sizeof(last_prefix));
-//     }
-
-
-//     // find all matching commands/programs
-//     match_count = find_all_matches(prefix, matches);
-//     // if (match_count == 1) {
-//     //     complete_command(matches[0]);
-//     //     tab_press_count = 0;
-//     // } 
-//     // else if (match_count > 1) {
-//     //     tab_press_count++;
-//     //     if (tab_press_count >= 2) {
-//     //         show_all_matches(matches, match_count);
-//     //         tab_press_count = 0;
-//     //     }
-//     // } 
-//     // else {
-//     //     tab_press_count = 0;
-//     // }
-// }
-
-
-
+void print_array(char *buffer){
+      for (int i = 0; i < input.e; i++)
+    {
+      cgaputc(buffer[i]);
+    }
+}
 
 void
 consoleintr(int (*getc)(void))
@@ -385,6 +252,7 @@ consoleintr(int (*getc)(void))
       
     case C('H'): case '\x7f':  // Backspace
       if(input.e != input.w){
+        shift_buffer_left();
         input.e--;
         consputc(BACKSPACE);
       }
@@ -454,10 +322,10 @@ consoleintr(int (*getc)(void))
 
     case C('E'):
     // i added it here to help debugging.
-      cgaputc('0' + input.e);
-      cgaputc('0' + input.w);
+        cgaputc("0"+input.r);
+        cgaputc("0"+input.w);
+        cgaputc("0"+input.e);
       break;
-
     case LEFT_ARROW:
 
 
@@ -470,9 +338,9 @@ consoleintr(int (*getc)(void))
             left_key_pressed=1;
           }
           
-      
-          left_key_pressed_count++;
           move_cursor_left();
+          left_key_pressed_count++;
+
         }
         
 
@@ -491,21 +359,24 @@ consoleintr(int (*getc)(void))
         }
       break;
 
-
-
-    case '\t':
-        tab_pressed = 1;         
-        input.buf[input.e++] = '\t'; // put TAB in input buffer for shell to see
-
-        
     default:
       if(c != 0 && input.e-input.r < INPUT_BUF){
         c = (c == '\r') ? '\n' : c;
 
-        input.buf[input.e++ % INPUT_BUF] = c;
+        if (c=='\n')
+        {
+          input.buf[(input.e++) % INPUT_BUF] = c;
+        }
+        
+
+        else{
+          shift_buffer_right();
+          input.buf[(input.e++-left_key_pressed_count) % INPUT_BUF] = c;
+        }
 
 
-    
+
+
         consputc(c);
         if(c == '\n' || c == C('D') || input.e == input.r+INPUT_BUF){
           left_key_pressed=0;
@@ -602,7 +473,11 @@ void move_cursor_left(void){
   pos = inb(CRTPORT+1) << 8;
   outb(CRTPORT, 15);
   pos |= inb(CRTPORT+1);
-  if(pos>0)
+
+
+
+
+  if(crt[pos - 2] != ('$' | 0x0700))
     pos--;
 
   // reset cursor

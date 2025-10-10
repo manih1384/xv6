@@ -3,7 +3,7 @@
 #include "types.h"
 #include "user.h"
 #include "fcntl.h"
-
+#include "fs.h"
 // Parsed command representation
 #define EXEC  1
 #define REDIR 2
@@ -130,19 +130,90 @@ runcmd(struct cmd *cmd)
   exit();
 }
 
-int getcmd(char *buf, int nbuf)
-{
-    printf(2, "$ ");
-    memset(buf, 0, nbuf);
-    gets(buf, nbuf);
-
-    if(buf[0] == 0) // EOF
-        return -1;
 
 
 
-    return 0;
-}
+// void
+// autocompletion(char *buf, int pos, int tab_count)
+// {
+//   int i;
+//   char prefix[DIRSIZ+1];
+//   int start = 0;
+
+//   // Find where the last word starts (after last space)
+//   for (i = pos - 1; i >= 0; i--) {
+//     if (buf[i] == ' ' || buf[i] == '\n' || buf[i] == '\r') {
+//       start = i + 1;
+//       break;
+//     }
+//   }
+
+//   // Copy that part into prefix[]
+//   int j = 0;
+//   while (start + j < pos && j < DIRSIZ) {
+//     prefix[j] = buf[start + j];
+//     j++;
+//   }
+//   prefix[j] = '\0';
+
+//   // Debug print to test your extraction first:
+  
+// }
+
+
+
+//   char*
+//   gets_modified(char *buf, int max)
+//   {
+    
+//     int i, cc;
+//     char c;
+//     int tab_count = 0;
+
+//     for (i = 0; i + 1 < max; ) {
+//       cc = read(0, &c, 1);
+//       printf(2, "$ ");
+//       if (cc < 1)
+//         break;
+
+//       if (c == '\t') {
+//         tab_count++;
+//         autocompletion(buf,i,tab_count);
+//         continue;   // don’t put '\t' in buffer
+//       } else {
+//         tab_count = 0;
+//       }
+
+//       buf[i++] = c;
+
+//       if (c == '\n' || c == '\r')
+//         break;
+//     }
+
+//     buf[i] = '\0';
+//     return buf;
+//   }
+
+
+
+
+
+
+
+  int getcmd(char *buf, int nbuf)
+  {
+      printf(2, "$ ");
+      memset(buf, 0, nbuf);
+
+      gets(buf, nbuf);
+
+      if(buf[0] == 0) // EOF
+          return -1;
+
+
+
+      return 0;
+  }
 
 
 int
