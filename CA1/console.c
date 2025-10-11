@@ -14,13 +14,12 @@
 #include "mmu.h"
 #include "proc.h"
 #include "x86.h"
-
-
 int left_key_pressed=0;
 int left_key_pressed_count=0;
 static void consputc(int);
 
 static int panicked = 0;
+#define INPUT_BUF 128
 
 static struct {
   struct spinlock lock;
@@ -131,6 +130,70 @@ panic(char *s)
 #define CRTPORT 0x3d4
 static ushort *crt = (ushort*)P2V(0xb8000);  // CGA memory
 
+#define UNDO_BS 0x101
+
+
+struct {
+    int pos_data[INPUT_BUF];
+    int size;
+    int cap;
+} cga_pos_sequence = { {0}, 0, INPUT_BUF };
+
+// Append a new position to the end.
+void append_cga_pos(int pos) {
+    if (cga_pos_sequence.size >= cga_pos_sequence.cap) {
+        return; // Safety: ignore if full
+    }
+    cga_pos_sequence.pos_data[cga_pos_sequence.size++] = pos;
+}
+
+// Get the last recorded position.
+int last_cga_pos(void) {
+    if (cga_pos_sequence.size == 0) return -1;
+    return cga_pos_sequence.pos_data[cga_pos_sequence.size - 1];
+}
+
+// Delete the last recorded position.
+void delete_last_cga_pos(void) {
+    if (cga_pos_sequence.size > 0) {
+        cga_pos_sequence.size--;
+    }
+}
+
+// Clear the entire sequence history.
+void clear_cga_pos_sequence(void) {
+    cga_pos_sequence.size = 0;
+}
+
+void delete_from_cga_pos_sequence(int pos) {
+    int idx = -1;
+    // Find the index of the position we want to remove.
+    for (int i = 0; i < cga_pos_sequence.size; i++) {
+        if (cga_pos_sequence.pos_data[i] == pos) {
+            idx = i;
+            break;
+        }
+    }
+    if (idx == -1) return; // Position not found in history, nothing to do.
+
+    // Shift all elements after the found index to the left.
+    for (int i = idx; i < cga_pos_sequence.size - 1; i++) {
+        cga_pos_sequence.pos_data[i] = cga_pos_sequence.pos_data[i + 1];
+    }
+    cga_pos_sequence.size--;
+
+    // CRITICAL FIX: All characters that were drawn *after* the deleted
+    // character have now shifted one position to the left on the screen.
+    // We must update their recorded positions in our history to reflect this.
+    for (int i = 0; i < cga_pos_sequence.size; i++) {
+        if (cga_pos_sequence.pos_data[i] > pos) {
+            cga_pos_sequence.pos_data[i]--;
+        }
+    }
+}
+
+
+
 static void
 cgaputc(int c)
 {
@@ -142,18 +205,73 @@ cgaputc(int c)
   outb(CRTPORT, 15);
   pos |= inb(CRTPORT+1);
 
-  if(c == '\n')
+  if(c == '\n'){
     pos += 80 - pos%80;
-  else if(c == BACKSPACE){
-    for (int i = pos - 1 ; i < pos + left_key_pressed_count ; i++)
+    clear_cga_pos_sequence();
+  }
+ 
+
+    else if(c == BACKSPACE){
+    // This is the position of the character being deleted.
+    int deleted_pos = pos - 1;
+    // Visually shift all characters on the screen starting from the deleted position.
+    for (int i = deleted_pos; i < pos + left_key_pressed_count; i++)
       crt[i] = crt[i + 1];
+
+    // CRITICAL FIX: The characters to the right of the deleted one have shifted left.
+    // We must update their recorded positions in our history.
+    // The entry for 'deleted_pos' itself was already removed by consoleintr,
+    // so this loop corrects the remaining entries.
+    for (int i = 0; i < cga_pos_sequence.size; i++) {
+        if (cga_pos_sequence.pos_data[i] > deleted_pos) {
+            cga_pos_sequence.pos_data[i]--;
+        }
+    }
+    delete_from_cga_pos_sequence(deleted_pos);
 
     if(pos > 0) --pos;
   }
-  else{
+else if (c == UNDO_BS) {
+    int undo_pos = last_cga_pos();
+    if (undo_pos == -1) return;
+    
+    delete_last_cga_pos();
+
+    for (int i = undo_pos; i < pos + left_key_pressed_count; i++) {
+        crt[i] = crt[i + 1];
+    }
+
+    // MODIFIED: After an undo, we must also update the history for any
+    // characters that were on the right of the undone character.
+    for (int i = 0; i < cga_pos_sequence.size; i++) {
+        if (cga_pos_sequence.pos_data[i] > undo_pos) {
+            cga_pos_sequence.pos_data[i]--;
+        }
+    }
+    
+    if(pos > pos + left_key_pressed_count-1) --pos;
+    else
+      left_key_pressed_count--;
+  } 
+
+
+  else {
+    // A normal character is typed.
+    // append its position BEFORE shifting other character positions.
+    append_cga_pos(pos);
+
+    // MODIFIED: When inserting a char, all chars to the right are shifted.
+    // We must update their recorded positions in the history.
+    for (int i = 0; i < cga_pos_sequence.size - 1; i++) { // size-1 because we just added the new one
+        if (cga_pos_sequence.pos_data[i] >= pos) {
+            cga_pos_sequence.pos_data[i]++;
+        }
+    }
+    
+    // Visually shift chars on screen
     for (int i = pos + left_key_pressed_count; i > pos ; i--)
       crt[i] = crt[i - 1];
-    crt[pos++] = (c&0xff) | 0x0700; // black on white
+    crt[pos++] = (c&0xff) | 0x0700;
   }
 
   if(pos < 0 || pos > 25*80)
@@ -181,14 +299,13 @@ consputc(int c)
       ;
   }
 
-  if(c == BACKSPACE){
+  if(c == BACKSPACE || c==UNDO_BS){
     uartputc('\b'); uartputc(' '); uartputc('\b');
   } else
     uartputc(c);
   cgaputc(c);
 }
 
-#define INPUT_BUF 128
 struct {
   char buf[INPUT_BUF];
   uint r;  // Read index
@@ -196,16 +313,86 @@ struct {
   uint e;  // Edit index
 } input;
 
+
+
+
+
+
+struct {
+    int data[INPUT_BUF];
+    int size;
+    int cap;
+} input_sequence = { {0}, 0, INPUT_BUF };
+
+
+// Append a new element at end
+void append_sequence(int value) {
+    if (input_sequence.size >= input_sequence.cap) {
+        // memory is fixed, cannot expand
+        return;  // safely ignore when full
+    }
+    input_sequence.data[input_sequence.size++] = value;
+}
+
+
+// Delete the element that has value `value`
+void delete_from_sequence(int value) {
+    int idx = -1;
+    for (int i = 0; i < input_sequence.size; i++) {
+        if (input_sequence.data[i] == value) {
+            idx = i;
+            break;
+        }
+    }
+    if (idx == -1) return;  // not found
+
+    for (int i = idx; i < input_sequence.size - 1; i++)
+        input_sequence.data[i] = input_sequence.data[i + 1];
+
+    input_sequence.size--;
+}
+
+
+// Return last element, or -1 if empty
+int last_sequence(void) {
+    if (input_sequence.size == 0) return -1;
+    return input_sequence.data[input_sequence.size - 1];
+}
+
+
+// Clear all elements (does not free memory in static version)
+void clear_sequence(void) {
+    input_sequence.size = 0;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 #define C(x)  ((x)-'@')  // Control-x
 #define LEFT_ARROW   0xE4    
 #define RIGHT_ARROW 0xE5 
 
 
 
-static void shift_buffer_left(void)
+static void shift_buffer_left(int shift_from_seq)
 {
-  int cursor= input.e-left_key_pressed_count;
-  for (int i = cursor - 1; i < input.e; i++)
+  int shift_idx= shift_from_seq ? last_sequence(): input.e-left_key_pressed_count;
+  if (shift_from_seq)
+    (delete_from_sequence(input_sequence.size-1));
+  for (int i = shift_idx - 1; i < input.e; i++)
   {
     input.buf[(i) % INPUT_BUF] = input.buf[(i + 1) % INPUT_BUF]; // Shift elements to left
   }
@@ -247,12 +434,20 @@ consoleintr(int (*getc)(void))
             input.buf[(input.e-1) % INPUT_BUF] != '\n'){
         input.e--;
         consputc(BACKSPACE);
+        clear_sequence();
+        clear_cga_pos_sequence();
       }
       break;
       
     case C('H'): case '\x7f':  // Backspace
       if(input.e != input.w){
-        shift_buffer_left();
+        shift_buffer_left(0);
+        delete_from_sequence(input.e-left_key_pressed_count);
+        for(int i=0;i<input_sequence.size;i++)
+          {
+            if(input_sequence.data[i]>(input.e-left_key_pressed_count) % INPUT_BUF)
+              input_sequence.data[i]--;
+          }
         input.e--;
         consputc(BACKSPACE);
       }
@@ -322,9 +517,10 @@ consoleintr(int (*getc)(void))
 
     case C('E'):
     // i added it here to help debugging.
-        cgaputc("0"+input.r);
-        cgaputc("0"+input.w);
+        // cgaputc("0"+input.r);
+        // cgaputc("0"+input.w);
         cgaputc("0"+input.e);
+         cgaputc(cga_pos_sequence.pos_data[cga_pos_sequence.size-1]);
       break;
     case LEFT_ARROW:
 
@@ -359,6 +555,14 @@ consoleintr(int (*getc)(void))
         }
       break;
 
+    case C('Z'):  // Backspace
+      if(input.e != input.w){
+        shift_buffer_left(1);
+        input.e--;
+        consputc(UNDO_BS);
+      }
+
+      break;      
     default:
       if(c != 0 && input.e-input.r < INPUT_BUF){
         c = (c == '\r') ? '\n' : c;
@@ -371,6 +575,12 @@ consoleintr(int (*getc)(void))
 
         else{
           shift_buffer_right();
+          append_sequence((input.e-left_key_pressed_count) % INPUT_BUF);
+          for(int i=0;i<input_sequence.size;i++)
+          {
+            if(input_sequence.data[i]>(input.e-left_key_pressed_count) % INPUT_BUF)
+              input_sequence.data[i]++;
+          }
           input.buf[(input.e++-left_key_pressed_count) % INPUT_BUF] = c;
         }
 
@@ -378,6 +588,8 @@ consoleintr(int (*getc)(void))
 
 
         consputc(c);
+        if(c == '\n' )
+          clear_sequence();
         if(c == '\n' || c == C('D') || input.e == input.r+INPUT_BUF){
           left_key_pressed=0;
           left_key_pressed_count=0;
