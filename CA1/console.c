@@ -570,6 +570,7 @@ consoleintr(int (*getc)(void))
         if (c=='\n')
         {
           input.buf[(input.e++) % INPUT_BUF] = c;
+          clear_sequence();
         }
         
 
