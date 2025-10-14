@@ -4,6 +4,7 @@
 #include "user.h"
 #include "fcntl.h"
 #include "fs.h"
+#include "stat.h" // added thattt
 // Parsed command representation
 #define EXEC  1
 #define REDIR 2
@@ -12,6 +13,170 @@
 #define BACK  5
 
 #define MAXARGS 10
+
+
+// In string.c, add this code at the end of the file.
+
+char*
+strncpy(char *s, const char *t, int n)
+{
+  char *os;
+
+  os = s;
+  while(n-- > 0 && (*s++ = *t++) != 0)
+    ;
+  while(n-- > 0)
+    *s++ = 0;
+  return os;
+}
+
+int
+strncmp(const char *p, const char *q, uint n)
+{
+  while(n > 0 && *p && *p == *q)
+    n--, p++, q++;
+  if(n == 0)
+    return 0;
+  return (uchar)*p - (uchar)*q;
+}
+
+
+
+
+
+char* knowncommands[] = {
+    "ls", "cat", "echo", "cd", "wait", "sh", "rm", "mkdir",
+    "ln", "kill", "init", "grep", "zombie", "grind",
+    // Add any other commands you have created here
+}; //newwwwwwwwwwwwww
+
+int num_known_commands = sizeof(knowncommands) / sizeof(knowncommands[0]);// newwwwwwwwwww
+
+
+// Helper function to update a buffer with the common prefix of itself and another string.
+// `prefix_buf` is the buffer holding the current longest common prefix.
+// `new_word` is the new word to compare against.
+// `max_len` is the size of prefix_buf.
+void update_common_prefix(char *prefix_buf, const char *new_word, int max_len) {
+    int len = 0;
+    // Find length of common prefix
+    while (len < max_len - 1 && prefix_buf[len] && new_word[len] && prefix_buf[len] == new_word[len]) {
+        len++;
+    }
+    // Null-terminate the prefix buffer at the end of the common part.
+    prefix_buf[len] = '\0';
+}
+
+
+
+
+void autocompletion(char *buf)
+{
+  int match_count = 0;
+  char match_buf[100]; // Static buffer to hold the best match so far
+  char *current_word = buf;
+  int i;
+
+  memset(match_buf, 0, sizeof(match_buf));
+  
+  // Find the start of the word we need to complete
+  for(i = strlen(buf) - 1; i >= 0; i--){
+    if(buf[i] == ' '){
+      current_word = buf + i + 1;
+      break;
+    }
+  }
+
+  // Decide whether to complete a command name or a file/path name.
+  if(current_word == buf) {
+    // --- COMMAND COMPLETION LOGIC ---
+    for (i = 0; i < num_known_commands; i++) {
+      if (strncmp(knowncommands[i], current_word, strlen(current_word)) == 0) {
+        if (match_count == 0) {
+          // First match found. Copy it to our static buffer.
+          strncpy(match_buf, knowncommands[i], sizeof(match_buf) - 1);
+        } else {
+          // More than one match. Update match_buf to be the common prefix.
+          update_common_prefix(match_buf, knowncommands[i], sizeof(match_buf));
+        }
+        match_count++;
+      }
+    }
+  } else {
+    // --- FILE/DIRECTORY COMPLETION LOGIC (like 'ls') ---
+    char path[512];
+    int fd;
+    struct dirent de;
+    struct stat st;
+
+    // Open the current directory for reading.
+    if((fd = open(".", 0)) < 0){
+      printf(2, "autocomplete: cannot open .\n");
+      return;
+    }
+    
+    // Read through all directory entries.
+    while(read(fd, &de, sizeof(de)) == sizeof(de)){
+      if(de.inum == 0) // Skip empty entries.
+        continue;
+      
+      // We must not try to complete "." or ".."
+      if(strcmp(de.name, ".") == 0 || strcmp(de.name, "..") == 0)
+        continue;
+        
+      // Check if the file name starts with our current word.
+      if (strncmp(de.name, current_word, strlen(current_word)) == 0) {
+        if (match_count == 0) {
+          // First match. Copy to our buffer.
+          strncpy(match_buf, de.name, sizeof(match_buf) - 1);
+        } else {
+          // Multiple matches. Find common prefix.
+          update_common_prefix(match_buf, de.name, sizeof(match_buf));
+        }
+        match_count++;
+      }
+    }
+    close(fd);
+    
+    // This is a nice-to-have feature: if there's a single, unique match,
+    // and it's a directory, add a '/' to the end.
+    if(match_count == 1) {
+        // We need to build the full path to stat() the file
+        if(strlen(buf) + strlen(match_buf) < sizeof(path)) {
+            strcpy(path, "."); // or the directory part of the path if you implement that
+            strcpy(path + strlen(path), "/");
+            strcpy(path + strlen(path), match_buf);
+            if(stat(path, &st) >= 0 && st.type == T_DIR) {
+                int len = strlen(match_buf);
+                if(len + 1 < sizeof(match_buf)) {
+                    match_buf[len] = '/';
+                    match_buf[len+1] = '\0';
+                }
+            }
+        }
+    }
+  }
+
+  // --- SEND THE RESULT BACK TO THE KERNEL ---
+  if (match_count > 0 && strlen(match_buf) > strlen(current_word)) {
+    char* completion_text = match_buf + strlen(current_word);
+    int completion_len = strlen(completion_text);
+    
+    // Use a static buffer for the result message to the kernel
+    char result[128];
+    if (completion_len + 3 < sizeof(result)) {
+        memset(result, 0, sizeof(result));
+        strcpy(result, "\t\t");
+        strcpy(result + 2, completion_text);
+
+        // This write() call sends the special message to consolewrite.
+        write(1, result, strlen(result));
+    }
+  }
+}
+
+// Forward declaration for getcmd
+int getcmd(char *buf, int nbuf);
 
 struct cmd {
   int type;
@@ -229,26 +394,72 @@ int find_incomplete_command_start(char *buf) {
 
 
 
-  int getcmd(char *buf, int nbuf)
-  {
-      printf(2, "$ ");
-      memset(buf, 0, nbuf);
+  // int getcmd(char *buf, int nbuf)
+  // {
+  //     printf(2, "$ ");
+  //     memset(buf, 0, nbuf);
 
-      gets(buf, nbuf);
+  //     gets(buf, nbuf);
 
-      int idx= find_incomplete_command_start(buf);
-      for (int i = idx; i < 100; i++)
-      {
-        buf[i];
-      }
+  //     int idx= find_incomplete_command_start(buf);
+  //     for (int i = idx; i < 100; i++)
+  //     {
+  //       buf[i];
+  //     }
       
-      if(buf[0] == 0) // EOF
-          return -1;
+  //     if(buf[0] == 0) // EOF
+  //         return -1;
 
 
 
-      return 0;
-  }
+  //     return 0;
+  // }
+
+
+
+// In sh.c
+
+int
+getcmd(char *buf, int nbuf)
+{
+    printf(2, "$ ");
+    memset(buf, 0, nbuf);
+    int i = 0;
+    char c;
+
+    // Loop to read one character at a time.
+    for(i = 0; i+1 < nbuf; ){
+        if(read(0, &c, 1) < 1)
+            return -1; // EOF
+
+        // If the user presses Tab:
+        if (c == '\t') {
+            buf[i] = '\0';        // Null-terminate the string so far.
+            autocompletion(buf);  // Call the logic to calculate the completion.
+            
+            // After autocompletion, the shell sends the completion to the kernel.
+            // The kernel stuffs it in the input buffer and wakes us up.
+            // Now, we loop again to read the newly completed line from the start.
+            // The read() call above will now receive the characters we just sent.
+            continue; // Continue the for loop to read the completed text
+        }
+        
+        // If the user presses Enter, the command is done.
+        if(c == '\n' || c == '\r'){
+            buf[i++] = c;
+            break;
+        }
+
+        // Add the character to our buffer.
+        buf[i++] = c;
+    }
+    buf[i] = '\0';
+    if(buf[0] == 0) // EOF
+        return -1;
+    return 0;
+}
+
+
 
 
 int

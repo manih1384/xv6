@@ -617,6 +617,69 @@ consoleintr(int (*getc)(void))
   }
 }
 
+// int
+// consoleread(struct inode *ip, char *dst, int n)
+// {
+//   uint target;
+//   int c;
+
+//   iunlock(ip);
+//   target = n;
+//   acquire(&cons.lock);
+//   while(n > 0){
+//     while ((!tab_flag && input.r == input.w) || (tab_flag && input.tabr == input.e)) {
+//       if(myproc()->killed){
+//         release(&cons.lock);
+//         ilock(ip);
+//         return -1;
+//       }
+//       sleep(&input.r, &cons.lock);
+//     }
+
+
+//     if (tab_flag==0)
+//     {
+//           c = input.buf[input.r++ % INPUT_BUF];
+//           if(c == C('D')){  // EOF
+//           if(n < target){
+//             // Save ^D for next time, to make sure
+//             // caller gets a 0-byte result.
+//             input.r--;
+//           }
+//           break;
+//         }
+//         *dst++ =c;
+//     }
+//     else
+//     {
+//       c = input.buf[input.tabr++ % INPUT_BUF];
+//       *dst++ =c;
+      
+//     }
+
+    
+
+//     if (input.tabr==input.e)
+//     {
+//       tab_flag=0;
+//       *dst++ = "\t";
+//     }
+    
+ 
+    
+//     --n;
+//     if(c == '\n' || c=='\t')
+//       break;
+//   }
+//   release(&cons.lock);
+//   ilock(ip);
+
+//   return target - n;
+// }
+
+
+
+
 int
 consoleread(struct inode *ip, char *dst, int n)
 {
@@ -627,7 +690,8 @@ consoleread(struct inode *ip, char *dst, int n)
   target = n;
   acquire(&cons.lock);
   while(n > 0){
-    while ((!tab_flag && input.r == input.w) || (tab_flag && input.tabr == input.e)) {
+    // Wait for the writer (consoleintr or consolewrite) to provide input.
+    while(input.r == input.w){
       if(myproc()->killed){
         release(&cons.lock);
         ilock(ip);
@@ -636,39 +700,21 @@ consoleread(struct inode *ip, char *dst, int n)
       sleep(&input.r, &cons.lock);
     }
 
+    // Read one character from the buffer.
+    c = input.buf[input.r++ % INPUT_BUF];
 
-    if (tab_flag==0)
-    {
-          c = input.buf[input.r++ % INPUT_BUF];
-          if(c == C('D')){  // EOF
-          if(n < target){
-            // Save ^D for next time, to make sure
-            // caller gets a 0-byte result.
-            input.r--;
-          }
-          break;
-        }
-        *dst++ =c;
-    }
-    else
-    {
-      c = input.buf[input.tabr++ % INPUT_BUF];
-      *dst++ =c;
-      
+    if(c == C('D')){  // Handle EOF
+      if(n < target){
+        input.r--;
+      }
+      break;
     }
 
-    
-
-    if (input.tabr==input.e)
-    {
-      tab_flag=0;
-      *dst++ = "\t";
-    }
-    
- 
-    
+    *dst++ = c;
     --n;
-    if(c == '\n' || c=='\t')
+
+    // A read is complete on a newline or a tab.
+    if(c == '\n' || c == '\t')
       break;
   }
   release(&cons.lock);
@@ -677,20 +723,89 @@ consoleread(struct inode *ip, char *dst, int n)
   return target - n;
 }
 
+
+
+
+// int
+// consolewrite(struct inode *ip, char *buf, int n)
+// {
+//   int i;
+
+//   iunlock(ip);
+//   acquire(&cons.lock);
+//   for(i = 0; i < n; i++)
+//     consputc(buf[i] & 0xff);
+//   release(&cons.lock);
+//   ilock(ip);
+
+//   return n;
+// }
+
+
 int
 consolewrite(struct inode *ip, char *buf, int n)
 {
   int i;
+  // These flags manage the tab completion protocol
+  int tabcomplete = 0;
+  int writestdin = 0; 
 
   iunlock(ip);
   acquire(&cons.lock);
-  for(i = 0; i < n; i++)
-    consputc(buf[i] & 0xff);
+  
+  for(i = 0; i < n; i++){
+    char c = buf[i] & 0xff;
+
+    // STEP 1: Detect the special tab completion message from the shell.
+    // A single '\t' at the start of a write() call initiates the protocol.
+    if(i == 0 && c == '\t') {
+      tabcomplete = 1;
+      continue;
+    }
+
+    if(tabcomplete) {
+      // STEP 2: A second '\t' in the message means the shell wants us to 
+      // not only add the text to the buffer but also echo it to the screen.
+      if (c == '\t') {
+        writestdin = 1; 
+        continue;
+      }
+
+      // STEP 3: Stuff the completion characters into the kernel's input buffer.
+      // This is the "backdoor" that lets the shell modify the command line.
+      if(input.e-input.r < INPUT_BUF) {
+          if (writestdin) {
+            // We need to simulate typing, so we handle insertions and screen updates correctly.
+            shift_buffer_right();
+            input.buf[(input.e++ - left_key_pressed_count) % INPUT_BUF] = c;
+            consputc(c);
+          } else {
+            // If writestdin is false, we only update the buffer without echoing.
+            // (This is not used in the current shell logic, but is good practice to have)
+            input.buf[input.e++ % INPUT_BUF] = c;
+          }
+      }
+    } else {
+      // If not a tab completion message, just do a normal character write.
+      consputc(c);
+    }
+  }
+
+  // After the shell has modified our buffer, wake it up so it can re-read the now-completed line.
+  if (tabcomplete) {
+      input.w = input.e;
+      wakeup(&input.r);
+  }
+
   release(&cons.lock);
   ilock(ip);
 
   return n;
 }
+
+
+
+
 
 void
 consoleinit(void)
