@@ -311,6 +311,7 @@ struct {
   uint r;  // Read index
   uint w;  // Write index
   uint e;  // Edit index
+  uint tabr; // tab read index
 } input;
 
 
@@ -417,6 +418,9 @@ void print_array(char *buffer){
     }
 }
 
+
+
+int tab_flag=0;
 void
 consoleintr(int (*getc)(void))
 {
@@ -561,8 +565,14 @@ consoleintr(int (*getc)(void))
         input.e--;
         consputc(UNDO_BS);
       }
+       break;  
+    case '\t':
+      input.tabr=input.r;
+      tab_flag=1;
+      wakeup(&input.r);
+      break;
 
-      break;      
+         
     default:
       if(c != 0 && input.e-input.r < INPUT_BUF){
         c = (c == '\r') ? '\n' : c;
@@ -617,7 +627,7 @@ consoleread(struct inode *ip, char *dst, int n)
   target = n;
   acquire(&cons.lock);
   while(n > 0){
-    while(input.r == input.w){
+    while ((!tab_flag && input.r == input.w) || (tab_flag && input.tabr == input.e)) {
       if(myproc()->killed){
         release(&cons.lock);
         ilock(ip);
@@ -625,18 +635,40 @@ consoleread(struct inode *ip, char *dst, int n)
       }
       sleep(&input.r, &cons.lock);
     }
-    c = input.buf[input.r++ % INPUT_BUF];
-    if(c == C('D')){  // EOF
-      if(n < target){
-        // Save ^D for next time, to make sure
-        // caller gets a 0-byte result.
-        input.r--;
-      }
-      break;
+
+
+    if (tab_flag==0)
+    {
+          c = input.buf[input.r++ % INPUT_BUF];
+          if(c == C('D')){  // EOF
+          if(n < target){
+            // Save ^D for next time, to make sure
+            // caller gets a 0-byte result.
+            input.r--;
+          }
+          break;
+        }
+        *dst++ =c;
     }
-    *dst++ = c;
+    else
+    {
+      c = input.buf[input.tabr++ % INPUT_BUF];
+      *dst++ =c;
+      
+    }
+
+    
+
+    if (input.tabr==input.e)
+    {
+      tab_flag=0;
+      *dst++ = "\t";
+    }
+    
+ 
+    
     --n;
-    if(c == '\n')
+    if(c == '\n' || c=='\t')
       break;
   }
   release(&cons.lock);

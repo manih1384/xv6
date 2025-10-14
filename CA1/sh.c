@@ -195,6 +195,35 @@ runcmd(struct cmd *cmd)
 //   }
 
 
+// Returns the index of the first char of the incomplete command before tab
+// buf: shell input buffer (null-terminated)
+// Returns -1 if no tab found
+int find_incomplete_command_start(char *buf) {
+    int i, tab_pos = -1;
+
+    // 1. Find first tab character
+    for (i = 0; buf[i] != 0; i++) {
+        if (buf[i] == '\t') {
+            tab_pos = i;
+            break;
+        }
+    }
+
+    if (tab_pos == -1)
+        return -1; // no tab found
+
+    // 2. Go backwards from tab to find last newline
+    int start = 0;
+    for (i = tab_pos - 1; i >= 0; i--) {
+        if (buf[i] == '\n') {
+            start = i + 1; // first char after '\n'
+            break;
+        }
+    }
+
+    return start; // index of first char of incomplete command
+}
+
 
 
 
@@ -207,6 +236,12 @@ runcmd(struct cmd *cmd)
 
       gets(buf, nbuf);
 
+      int idx= find_incomplete_command_start(buf);
+      for (int i = idx; i < 100; i++)
+      {
+        buf[i];
+      }
+      
       if(buf[0] == 0) // EOF
           return -1;
 
