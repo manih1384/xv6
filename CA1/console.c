@@ -440,7 +440,7 @@ consoleintr(int (*getc)(void))
       break;
       
     case C('H'): case '\x7f':  // Backspace
-      if(input.e != input.w){
+      if(input.e != input.w && input.e - input.w > left_key_pressed_count){
         shift_buffer_left(0);
         delete_from_sequence(input.e-left_key_pressed_count);
         for(int i=0;i<input_sequence.size;i++)
