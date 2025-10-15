@@ -72,107 +72,7 @@ void update_common_prefix(char *prefix_buf, const char *new_word, int max_len) {
 
 void autocompletion(char *buf)
 {
-  int match_count = 0;
-  char match_buf[100]; // Static buffer to hold the best match so far
-  char *current_word = buf;
-  int i;
-
-  memset(match_buf, 0, sizeof(match_buf));
-  
-  // Find the start of the word we need to complete
-  for(i = strlen(buf) - 1; i >= 0; i--){
-    if(buf[i] == ' '){
-      current_word = buf + i + 1;
-      break;
-    }
-  }
-
-  // Decide whether to complete a command name or a file/path name.
-  if(current_word == buf) {
-    // --- COMMAND COMPLETION LOGIC ---
-    for (i = 0; i < num_known_commands; i++) {
-      if (strncmp(knowncommands[i], current_word, strlen(current_word)) == 0) {
-        if (match_count == 0) {
-          // First match found. Copy it to our static buffer.
-          strncpy(match_buf, knowncommands[i], sizeof(match_buf) - 1);
-        } else {
-          // More than one match. Update match_buf to be the common prefix.
-          update_common_prefix(match_buf, knowncommands[i], sizeof(match_buf));
-        }
-        match_count++;
-      }
-    }
-  } else {
-    // --- FILE/DIRECTORY COMPLETION LOGIC (like 'ls') ---
-    char path[512];
-    int fd;
-    struct dirent de;
-    struct stat st;
-
-    // Open the current directory for reading.
-    if((fd = open(".", 0)) < 0){
-      printf(2, "autocomplete: cannot open .\n");
-      return;
-    }
-    
-    // Read through all directory entries.
-    while(read(fd, &de, sizeof(de)) == sizeof(de)){
-      if(de.inum == 0) // Skip empty entries.
-        continue;
-      
-      // We must not try to complete "." or ".."
-      if(strcmp(de.name, ".") == 0 || strcmp(de.name, "..") == 0)
-        continue;
-        
-      // Check if the file name starts with our current word.
-      if (strncmp(de.name, current_word, strlen(current_word)) == 0) {
-        if (match_count == 0) {
-          // First match. Copy to our buffer.
-          strncpy(match_buf, de.name, sizeof(match_buf) - 1);
-        } else {
-          // Multiple matches. Find common prefix.
-          update_common_prefix(match_buf, de.name, sizeof(match_buf));
-        }
-        match_count++;
-      }
-    }
-    close(fd);
-    
-    // This is a nice-to-have feature: if there's a single, unique match,
-    // and it's a directory, add a '/' to the end.
-    if(match_count == 1) {
-        // We need to build the full path to stat() the file
-        if(strlen(buf) + strlen(match_buf) < sizeof(path)) {
-            strcpy(path, "."); // or the directory part of the path if you implement that
-            strcpy(path + strlen(path), "/");
-            strcpy(path + strlen(path), match_buf);
-            if(stat(path, &st) >= 0 && st.type == T_DIR) {
-                int len = strlen(match_buf);
-                if(len + 1 < sizeof(match_buf)) {
-                    match_buf[len] = '/';
-                    match_buf[len+1] = '\0';
-                }
-            }
-        }
-    }
-  }
-
-  // --- SEND THE RESULT BACK TO THE KERNEL ---
-  if (match_count > 0 && strlen(match_buf) > strlen(current_word)) {
-    char* completion_text = match_buf + strlen(current_word);
-    int completion_len = strlen(completion_text);
-    
-    // Use a static buffer for the result message to the kernel
-    char result[128];
-    if (completion_len + 3 < sizeof(result)) {
-        memset(result, 0, sizeof(result));
-        strcpy(result, "\t\t");
-        strcpy(result + 2, completion_text);
-
-        // This write() call sends the special message to consolewrite.
-        write(1, result, strlen(result));
-    }
-  }
+  printf(2,"aaaa");
 }
 
 // Forward declaration for getcmd
@@ -298,98 +198,139 @@ runcmd(struct cmd *cmd)
 
 
 
-// void
-// autocompletion(char *buf, int pos, int tab_count)
-// {
-//   int i;
-//   char prefix[DIRSIZ+1];
-//   int start = 0;
-
-//   // Find where the last word starts (after last space)
-//   for (i = pos - 1; i >= 0; i--) {
-//     if (buf[i] == ' ' || buf[i] == '\n' || buf[i] == '\r') {
-//       start = i + 1;
-//       break;
-//     }
-//   }
-
-//   // Copy that part into prefix[]
-//   int j = 0;
-//   while (start + j < pos && j < DIRSIZ) {
-//     prefix[j] = buf[start + j];
-//     j++;
-//   }
-//   prefix[j] = '\0';
-
-//   // Debug print to test your extraction first:
-  
-// }
-
-
-
-//   char*
-//   gets_modified(char *buf, int max)
-//   {
-    
-//     int i, cc;
-//     char c;
-//     int tab_count = 0;
-
-//     for (i = 0; i + 1 < max; ) {
-//       cc = read(0, &c, 1);
-//       printf(2, "$ ");
-//       if (cc < 1)
-//         break;
-
-//       if (c == '\t') {
-//         tab_count++;
-//         autocompletion(buf,i,tab_count);
-//         continue;   // don’t put '\t' in buffer
-//       } else {
-//         tab_count = 0;
-//       }
-
-//       buf[i++] = c;
-
-//       if (c == '\n' || c == '\r')
-//         break;
-//     }
-
-//     buf[i] = '\0';
-//     return buf;
-//   }
-
 
 // Returns the index of the first char of the incomplete command before tab
 // buf: shell input buffer (null-terminated)
 // Returns -1 if no tab found
-int find_incomplete_command_start(char *buf) {
-    int i, tab_pos = -1;
+// int find_incomplete_command_start(char *buf) {
+//     int i, tab_pos = -1;
 
-    // 1. Find first tab character
-    for (i = 0; buf[i] != 0; i++) {
-        if (buf[i] == '\t') {
-            tab_pos = i;
-            break;
-        }
+//     // 1. Find first tab character
+//     for (i = 0; buf[i] != 0; i++) {
+//         if (buf[i] == '\t') {
+//             tab_pos = i;
+//             break;
+//         }
+//     }
+
+//     if (tab_pos == -1)
+//         return -1; // no tab found
+
+//     // 2. Go backwards from tab to find last newline
+//     int start = 0;
+//     for (i = tab_pos - 1; i >= 0; i--) {
+//         if (buf[i] == '\n') {
+//             start = i + 1; // first char after '\n'
+//             break;
+//         }
+//     }
+
+//     return start; // index of first char of incomplete command
+// }
+
+
+
+char *builtins[] = {"cd",0};
+
+void getprefix(char *buf, char *prefix) {
+    int len = strlen(buf);
+    int i;
+
+    // Copy all characters up to the first '\t'
+    for(i = 0; i < len; i++) {
+      if (buf[i] != '\t')
+      {
+        prefix[i] = buf[i];
+      }
+      else
+      {
+        // memset(buf, 0, strlen(buf));
+        break;
+      }
+      
+      
+        
     }
-
-    if (tab_pos == -1)
-        return -1; // no tab found
-
-    // 2. Go backwards from tab to find last newline
-    int start = 0;
-    for (i = tab_pos - 1; i >= 0; i--) {
-        if (buf[i] == '\n') {
-            start = i + 1; // first char after '\n'
-            break;
-        }
-    }
-
-    return start; // index of first char of incomplete command
+    
+    prefix[i] = '\0';  // null-terminate the prefix
 }
 
+void completecmd(char *buf) {
+    static char last_prefix[100] = "";
+    static int tab_count = 0;
 
+    char prefix[100];
+    getprefix(buf, prefix);
+
+    if (strlen(prefix) == 0)
+        return;
+
+    if (strcmp(prefix, last_prefix) != 0) {
+        tab_count = 1;
+        strcpy(last_prefix, prefix);
+    } else {
+        tab_count++;
+    }
+
+    // Prepare match list
+    char matches[100][DIRSIZ+1]; // 100 matches, each max DIRSIZ chars
+    int match_count = 0;
+
+    // Check built-ins
+    for (int i = 0; builtins[i]; i++) {
+        if (strncmp(prefix, builtins[i], strlen(prefix)) == 0) {
+            strncpy(matches[match_count], builtins[i], DIRSIZ);
+            matches[match_count][DIRSIZ] = '\0';
+            match_count++;
+        }
+    }
+
+    // Check files in current directory
+    int fd;
+    struct dirent de;
+    struct stat st;
+    if ((fd = open(".", 0)) >= 0) {
+        while (read(fd, &de, sizeof(de)) == sizeof(de)) {
+            if (de.inum == 0) continue;
+            if (strncmp(prefix, de.name, strlen(prefix)) == 0) {
+                strncpy(matches[match_count], de.name, DIRSIZ);
+                matches[match_count][DIRSIZ] = '\0';
+                match_count++;
+            }
+        }
+        close(fd);
+    }
+    
+    
+
+    
+
+    // Decide what to do based on match_count and tab_count
+    if (match_count == 0) { 
+        // nothing matches → do nothing
+    } 
+    else if (match_count == 1) { 
+      for (int i = 0; i < strlen(buf); i++)
+      {
+        buf[i]=' ';
+      }
+
+      printf(2,"\t%s\t", matches[0]);
+    } 
+    else if (tab_count == 1 && match_count > 1) { 
+        // first tab with multiple matches → do nothing
+    } 
+    else if (tab_count > 1 && match_count > 1) { 
+        // second tab or more → show all matches
+        printf(2, "\nMatches:\n");
+        for (int i = 0; i < match_count; i++) {
+            printf(2, "%s  ", matches[i]);
+        }
+        printf(2, "\n");
+    }
+
+    // printf(2, "Prefix: %s, tab_count: %d\n", prefix, tab_count);
+}
 
 
 
@@ -401,11 +342,7 @@ int find_incomplete_command_start(char *buf) {
 
   //     gets(buf, nbuf);
 
-  //     int idx= find_incomplete_command_start(buf);
-  //     for (int i = idx; i < 100; i++)
-  //     {
-  //       buf[i];
-  //     }
+  //     completecmd(buf);
       
   //     if(buf[0] == 0) // EOF
   //         return -1;
@@ -417,7 +354,7 @@ int find_incomplete_command_start(char *buf) {
 
 
 
-// In sh.c
+
 
 int
 getcmd(char *buf, int nbuf)
@@ -434,9 +371,7 @@ getcmd(char *buf, int nbuf)
 
         // If the user presses Tab:
         if (c == '\t') {
-            buf[i] = '\0';        // Null-terminate the string so far.
-            autocompletion(buf);  // Call the logic to calculate the completion.
-            
+            completecmd(buf);  // Call the logic to calculate the completion.
             // After autocompletion, the shell sends the completion to the kernel.
             // The kernel stuffs it in the input buffer and wakes us up.
             // Now, we loop again to read the newly completed line from the start.

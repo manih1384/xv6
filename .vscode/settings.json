@@ -3,6 +3,8 @@
         "proc.h": "c",
         "x86.h": "c",
         "cstring": "c",
-        "fcntl.h": "c"
+        "fcntl.h": "c",
+        "mutex": "c",
+        "random": "c"
     }
 }

@@ -57,11 +57,10 @@ gets(char *buf, int max)
 
   for(i=0; i+1 < max; ){
     cc = read(0, &c, 1);
-    // printf(2, "read returned %d, char=%c\n", cc, c);
     if(cc < 1)
       break;
     buf[i++] = c;
-    if(c == '\n' || c == '\r' || c=='\t')
+    if(c == '\n' || c == '\r')
       break;
       
   }
