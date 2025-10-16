@@ -421,6 +421,7 @@ void print_array(char *buffer){
 
 
 int tab_flag=0;
+int tab_flag2=0;
 void
 consoleintr(int (*getc)(void))
 {
@@ -559,7 +560,7 @@ consoleintr(int (*getc)(void))
         }
       break;
 
-    case C('Z'):  // Backspace
+    case C('Z'):  
       if(input.e != input.w){
         shift_buffer_left(1);
         input.e--;
@@ -570,8 +571,8 @@ consoleintr(int (*getc)(void))
 
 
 
-    case '\t':
-    if (input.tabr+1<input.e)
+    case '\t': //tab
+    if (input.tabr<input.e)
     {
       input.tabr=input.r;
     }
@@ -581,6 +582,9 @@ consoleintr(int (*getc)(void))
       wakeup(&input.r);
 
       break;
+
+
+
 
          
     default:
@@ -628,6 +632,7 @@ consoleintr(int (*getc)(void))
 }
 
 
+
 int
 consoleread(struct inode *ip, char *dst, int n)
 {
@@ -665,7 +670,7 @@ consoleread(struct inode *ip, char *dst, int n)
     {
       c = input.buf[input.tabr++ % INPUT_BUF];
       *dst++ =c;
-      
+    
     }
 
     
@@ -739,6 +744,7 @@ consoleread(struct inode *ip, char *dst, int n)
 
 
 int autocomplete_w=0; //flag for writing to console buffer
+int doubletab_detected=0;
 
 int
 consolewrite(struct inode *ip, char *buf, int n)
@@ -751,8 +757,27 @@ consolewrite(struct inode *ip, char *buf, int n)
 
   if (buf[0] == '\t' && autocomplete_w) {
     autocomplete_w=0;
+    input.tabr=input.r;
   }
-
+  else if (buf[0]=='@'&&doubletab_detected){
+    doubletab_detected=0;
+    input.tabr=input.r;          //shayannnnn: reset the tabr when a autocorrecting proccess is over so that case tab would work again (not sure)
+  }
+  else if (buf[0]!='@'&&buf[0]!='\t'&&doubletab_detected){
+    char c = buf[0];
+    consputc(c);
+    input.buf[input.e++ % INPUT_BUF] = c;
+  }
+  else if (buf[0]=='@'&&!doubletab_detected){
+    while (input.e > input.r) {
+      shift_buffer_left(0);
+      consputc(BACKSPACE);
+      input.e--;
+    }
+    cgaputc(' '); // an extra space for logic to match screen
+    doubletab_detected=1;
+    cgaputc('$'); cgaputc(' ');
+  }
   else if (buf[0]!='\t' && autocomplete_w)
   {
     
@@ -769,13 +794,14 @@ consolewrite(struct inode *ip, char *buf, int n)
     // first tab seen turn on auto complete
     //erase what we wrote at first
     while (input.e > input.r) {
+      shift_buffer_left(0);
       consputc(BACKSPACE);
       input.e--;
     }
     cgaputc(' '); // an extra space for logic to match screen
     autocomplete_w=1;
   }
-  else if (buf[0]!='\t' && !autocomplete_w)
+  else  if(buf[0]!='\t' && !autocomplete_w)
   {
     // write normaly
     for (i = 0; i < n; i++)

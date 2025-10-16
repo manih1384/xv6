@@ -255,9 +255,11 @@ void getprefix(char *buf, char *prefix) {
     prefix[i] = '\0';  // null-terminate the prefix
 }
 
+
 void completecmd(char *buf) {
     static char last_prefix[100] = "";
     static int tab_count = 0;
+    
 
     char prefix[100];
     getprefix(buf, prefix);
@@ -308,6 +310,7 @@ void completecmd(char *buf) {
     // Decide what to do based on match_count and tab_count
     if (match_count == 0) { 
         // nothing matches → do nothing
+        
     } 
     else if (match_count == 1) { 
       for (int i = 0; i < strlen(buf); i++)
@@ -316,6 +319,8 @@ void completecmd(char *buf) {
       }
 
       printf(2,"\t%s\t", matches[0]);
+      tab_count=0;
+      match_count=0;
     } 
     else if (tab_count == 1 && match_count > 1) { 
         // first tab with multiple matches → do nothing
@@ -326,9 +331,16 @@ void completecmd(char *buf) {
         for (int i = 0; i < match_count; i++) {
             printf(2, "%s  ", matches[i]);
         }
-        printf(2, "\n");
+        printf(2,"%s", "\n$ "); ;printf(2,"@%s@" ,buf);
+      for (int i = 0; i < strlen(buf); i++)
+      {
+        buf[i]=' ';
+      }
+      tab_count=0;
+      match_count=0;
     }
-
+// if (tab_count==2)
+//       tab_count=0;
     // printf(2, "Prefix: %s, tab_count: %d\n", prefix, tab_count);
 }
 
@@ -351,6 +363,9 @@ void completecmd(char *buf) {
 
   //     return 0;
   // }
+// Add this function to your console.c or wherever you need it
+
+
 
 
 
@@ -387,6 +402,7 @@ getcmd(char *buf, int nbuf)
 
         // Add the character to our buffer.
         buf[i++] = c;
+
     }
     buf[i] = '\0';
     if(buf[0] == 0) // EOF
