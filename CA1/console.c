@@ -239,11 +239,11 @@ cgaputc(int c)
     // We must update their recorded positions in our history.
     // The entry for 'deleted_pos' itself was already removed by consoleintr,
     // so this loop corrects the remaining entries.
-    for (int i = 0; i < cga_pos_sequence.size; i++) {
-        if (cga_pos_sequence.pos_data[i] > deleted_pos) {
-            cga_pos_sequence.pos_data[i]--;
-        }
-    }
+    // for (int i = 0; i < cga_pos_sequence.size; i++) {
+    //     if (cga_pos_sequence.pos_data[i] > deleted_pos) {
+    //         cga_pos_sequence.pos_data[i]--;
+    //     }
+    // }
     delete_from_cga_pos_sequence(deleted_pos);
 
     if(pos > 0) --pos;
