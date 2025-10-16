@@ -230,7 +230,7 @@ runcmd(struct cmd *cmd)
 
 
 
-char *builtins[] = {"cd",0};
+char *builtins[] = {"cd",0}; // test shayan
 
 void getprefix(char *buf, char *prefix) {
     int len = strlen(buf);
@@ -261,6 +261,10 @@ void completecmd(char *buf) {
     static int tab_count = 0;
     
 
+// reset last prefix shayan
+void completecmd(char *buf) {
+    static char last_prefix[100] = "";
+    static int tab_count = 0;
     char prefix[100];
     getprefix(buf, prefix);
 
@@ -273,7 +277,7 @@ void completecmd(char *buf) {
     } else {
         tab_count++;
     }
-
+    
     // Prepare match list
     char matches[100][DIRSIZ+1]; // 100 matches, each max DIRSIZ chars
     int match_count = 0;
@@ -311,20 +315,27 @@ void completecmd(char *buf) {
     if (match_count == 0) { 
         // nothing matches → do nothing
         
+        // test reset last prefix shayan
     } 
     else if (match_count == 1) { 
+      //shayan
+
       for (int i = 0; i < strlen(buf); i++)
       {
         buf[i]=' ';
       }
-
+      
+      // this is my own format shayan 
       printf(2,"\t%s\t", matches[0]);
       tab_count=0;
       match_count=0;
+
     } 
+
     else if (tab_count == 1 && match_count > 1) { 
         // first tab with multiple matches → do nothing
     } 
+
     else if (tab_count > 1 && match_count > 1) { 
         // second tab or more → show all matches
         printf(2, "\nMatches:\n");
@@ -346,7 +357,7 @@ void completecmd(char *buf) {
 
 
 
-
+// test old gets, shayan
   // int getcmd(char *buf, int nbuf)
   // {
   //     printf(2, "$ ");

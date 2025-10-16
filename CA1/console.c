@@ -580,7 +580,6 @@ consoleintr(int (*getc)(void))
       tab_flag=1;
       input.buf[(input.e++) % INPUT_BUF] = '\t';
       wakeup(&input.r);
-
       break;
 
 
@@ -672,7 +671,6 @@ consoleread(struct inode *ip, char *dst, int n)
       *dst++ =c;
     
     }
-
     
 
     if (input.tabr==input.e)
@@ -781,7 +779,7 @@ consolewrite(struct inode *ip, char *buf, int n)
   else if (buf[0]!='\t' && autocomplete_w)
   {
     
-
+    // this is like default case in consoleintr shayan
     char c = buf[0];
     consputc(c);
     input.buf[input.e++ % INPUT_BUF] = c;
