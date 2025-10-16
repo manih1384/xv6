@@ -21,6 +21,23 @@ static void consputc(int);
 static int panicked = 0;
 #define INPUT_BUF 128
 
+int select_start=0;
+int select_end=0;
+int select_mode = 0; // Add this and two previous ones for select part
+int select_length=0;
+// char selected_text[INPUT_BUF];
+char copied_text[INPUT_BUF];
+int copied_length = 0;
+// select mode is as followed:
+// 0: No ctrl S pressed
+// 1: A single ctrl was pressed only right and left arrows will not reset this, any other key will bring us back to mode 0
+// 2: The second ctrl S was pressed now we have many cases:
+// If right or left arrows get pressed ?
+// If backspace is pressed we delete the area
+// If ctrl C is pressed we save the selected area and go back to mode,
+// If any other key is used we show it and replace the area with that key and return to mode 0
+// in mode 2 we should highlight the section which has been selected
+
 static struct {
   struct spinlock lock;
   int locking;
@@ -384,6 +401,12 @@ void clear_sequence(void) {
 #define C(x)  ((x)-'@')  // Control-x
 #define LEFT_ARROW   0xE4    
 #define RIGHT_ARROW 0xE5 
+#define  CTL1 0x1D
+#define  SHIFT1 0x2A
+#define  SHIFT2 0x36
+#define  ALT1 0x38
+#define  CTL2 0x9D
+#define  ALT2 0xB8
 
 
 
@@ -417,6 +440,125 @@ void print_array(char *buffer){
     }
 }
 
+void highlight_from_buffer_positions(void) {
+  if (select_mode != 2) return;
+  
+  // Get current cursor screen position
+  int cursor_screen_pos;
+  outb(CRTPORT, 14);
+  cursor_screen_pos = inb(CRTPORT+1) << 8;
+  outb(CRTPORT, 15);
+  cursor_screen_pos |= inb(CRTPORT+1);
+  
+  // Calculate where buffer position 0 is on screen
+  // cursor_screen_pos = line_start + prompt_length + (input.e - left_key_pressed_count)
+  // So: line_start = cursor_screen_pos - prompt_length - (input.e - left_key_pressed_count)
+  int prompt_length = 2; // Since we have  "$ " or "> " at the start of the line we need to skip those
+  int line_start = cursor_screen_pos - prompt_length - (input.e - left_key_pressed_count);
+  
+  // Now we can directly map buffer indices to screen positions!
+  for (int buf_pos = select_start; buf_pos < select_end && buf_pos < input.e; buf_pos++) {
+      int screen_pos = line_start + prompt_length + buf_pos;
+      
+      if (screen_pos >= 0 && screen_pos < 80*25) {
+          crt[screen_pos] = (crt[screen_pos] & 0x00FF) | 0x7000;
+      }
+  }
+}
+
+void clear_highlight_from_buffer(void) {
+  if (select_mode != 2) return;
+  
+  // Same calculation
+  int cursor_screen_pos;
+  outb(CRTPORT, 14);
+  cursor_screen_pos = inb(CRTPORT+1) << 8;
+  outb(CRTPORT, 15);
+  cursor_screen_pos |= inb(CRTPORT+1);
+  
+  int prompt_length = 2;
+  int line_start = cursor_screen_pos - prompt_length - (input.e - left_key_pressed_count);
+  
+  for (int buf_pos = select_start; buf_pos < select_end && buf_pos < input.e; buf_pos++) {
+      int screen_pos = line_start + prompt_length + buf_pos;
+      
+      if (screen_pos >= 0 && screen_pos < 80*25) {
+          // Restore normal color
+          crt[screen_pos] = (crt[screen_pos] & 0x00FF) | 0x0700;
+      }
+  }
+}
+
+void delete_selected_area(void) {
+  if (select_start == select_end) return;
+  
+  int select_length = select_end - select_start;
+  
+  int current_pos = input.e - left_key_pressed_count;
+  int move_distance = select_end - current_pos;
+  
+  if (move_distance > 0) {
+      for (int i = 0; i < move_distance; i++) {
+          if(input.e > current_pos) {
+              left_key_pressed_count--;
+              move_cursor_right();
+              current_pos++;
+          }
+      }
+  } else if (move_distance < 0) {
+      for (int i = 0; i < -move_distance; i++) {
+          if(input.w < current_pos) {
+              left_key_pressed_count++;
+              move_cursor_left();
+              current_pos--;
+          }
+      }
+  }
+  
+  for (int i = 0; i < select_length; i++) {
+      if(input.e != input.w){
+          shift_buffer_left(0);
+          delete_from_sequence(input.e - left_key_pressed_count);
+          for(int j = 0; j < input_sequence.size; j++) {
+              if(input_sequence.data[j] > (input.e - left_key_pressed_count) % INPUT_BUF)
+                  input_sequence.data[j]--;
+          }
+          input.e--;
+          consputc(BACKSPACE);
+      }
+  }
+}
+
+void copy_selected_text(void) {
+  copied_length = 0;
+  for (int i = select_start; i < select_end && copied_length < INPUT_BUF - 1; i++) {
+    copied_text[copied_length] = input.buf[i % INPUT_BUF];
+    copied_length++;
+  }
+  copied_text[copied_length] = '\0';
+}
+void paste_text(void) {
+  if (copied_length == 0) return;
+  if (select_mode == 2) {
+      delete_selected_area();
+  }
+  
+  if (input.e + copied_length >= INPUT_BUF) {
+      return;
+  }
+  
+  for (int i = 0; i < copied_length; i++) {
+    char c = copied_text[i];
+    
+    shift_buffer_right();
+    
+    input.buf[(input.e - left_key_pressed_count) % INPUT_BUF] = c;
+    input.e++;
+    consputc(c);
+  }
+}
+
+
 void
 consoleintr(int (*getc)(void))
 {
@@ -424,6 +566,35 @@ consoleintr(int (*getc)(void))
 
   acquire(&cons.lock);
   while((c = getc()) >= 0){
+    if (c!=0) {
+      if (c != C('S') && select_mode != 0) {
+        if (select_mode == 1) {
+          if (
+            c != RIGHT_ARROW && c != LEFT_ARROW &&
+            c != C('A') && c != C('D') 
+          ) {
+            select_mode = 0;
+          }
+        }
+        else if (select_mode == 2) {  
+          if (c == C('H') || c == '\x7f') {
+            // Backspace - let it pass through
+          }
+          else if (c == C('C')) {
+            // Copy - let it pass through  
+          }
+          else if(
+            c != RIGHT_ARROW && c != LEFT_ARROW &&
+            c != C('A') && c != C('D') 
+          ) {
+            // Any other key (except arrows and modifiers) means delete selection
+            delete_selected_area();
+            select_mode = 0;
+          }
+        }
+      }
+    }
+
     switch(c){
     case C('P'):  // Process listing.
       // procdump() locks cons.lock indirectly; invoke later
@@ -440,18 +611,21 @@ consoleintr(int (*getc)(void))
       break;
       
     case C('H'): case '\x7f':  // Backspace
-      if(input.e != input.w){
+      if (select_mode == 2 && select_end != select_start) {
+        clear_highlight_from_buffer();
+        delete_selected_area();
+        select_mode = 0;
+      } 
+      else if(input.e != input.w && input.e - input.w > left_key_pressed_count){
         shift_buffer_left(0);
         delete_from_sequence(input.e-left_key_pressed_count);
-        for(int i=0;i<input_sequence.size;i++)
-          {
-            if(input_sequence.data[i]>(input.e-left_key_pressed_count) % INPUT_BUF)
-              input_sequence.data[i]--;
-          }
+        for(int i=0;i<input_sequence.size;i++) {
+          if(input_sequence.data[i]>(input.e-left_key_pressed_count) % INPUT_BUF)
+            input_sequence.data[i]--;
+        }
         input.e--;
         consputc(BACKSPACE);
       }
-
       break;
       
     case C('D'):
@@ -519,8 +693,12 @@ consoleintr(int (*getc)(void))
     // i added it here to help debugging.
         // cgaputc("0"+input.r);
         // cgaputc("0"+input.w);
-        cgaputc("0"+input.e);
-         cgaputc(cga_pos_sequence.pos_data[cga_pos_sequence.size-1]);
+        cgaputc("0"+select_start);
+        cgaputc("0"+select_end);
+        cgaputc("0"+select_mode);
+        // cgaputc("0"+input.e);
+        // cgaputc(cga_pos_sequence.pos_data[cga_pos_sequence.size-1]);
+
       break;
     case LEFT_ARROW:
 
@@ -561,19 +739,63 @@ consoleintr(int (*getc)(void))
         input.e--;
         consputc(UNDO_BS);
       }
+      break;
+      
+    case C('S'): // Select
+      if (select_mode == 0) {
+        select_start = input.e - left_key_pressed_count;
+        select_mode = 1;
+      }
+      else if (select_mode == 1) {
+        select_end = input.e - left_key_pressed_count;
+        if (select_start > select_end) {
+          int temp = select_start;
+          select_start = select_end;
+          select_end = temp; 
+        }
+        select_mode = 2;
+        highlight_from_buffer_positions();
+      }
+      else if (select_mode == 2) {
+        clear_highlight_from_buffer();
+        select_mode = 1;
+        select_start = input.e - left_key_pressed_count;
+      }
+      break;
 
-      break;      
+    case C('C'): // Copy
+      if (select_mode == 2) {
+        copy_selected_text();
+      }
+      break;
+
+    case C('V'): // Paste
+      if (select_mode == 2){
+        clear_highlight_from_buffer();
+      }
+      if (copied_length > 0) {
+        paste_text();
+        select_mode = 0;
+      }
+      break;
+
     default:
+      
       if(c != 0 && input.e-input.r < INPUT_BUF){
+        if (select_mode == 2) {
+          // Replace selection with typed character
+          clear_highlight_from_buffer(); // Remove highlight first
+          delete_selected_area();
+          select_mode = 0;
+          // Continue to process the key normally below
+        }
         c = (c == '\r') ? '\n' : c;
-
+    
         if (c=='\n')
         {
           input.buf[(input.e++) % INPUT_BUF] = c;
           clear_sequence();
         }
-        
-
         else{
           shift_buffer_right();
           append_sequence((input.e-left_key_pressed_count) % INPUT_BUF);
@@ -584,10 +806,7 @@ consoleintr(int (*getc)(void))
           }
           input.buf[(input.e++-left_key_pressed_count) % INPUT_BUF] = c;
         }
-
-
-
-
+    
         consputc(c);
         if(c == '\n' )
           clear_sequence();
