@@ -256,9 +256,7 @@ void getprefix(char *buf, char *prefix) {
 }
 
 
-void completecmd(char *buf) {
-    static char last_prefix[100] = "";
-    static int tab_count = 0;
+
     
 
 // reset last prefix shayan
