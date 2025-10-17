@@ -235,10 +235,9 @@ char *builtins[] = {"cd",0}; // test shayan
 void getprefix(char *buf, char *prefix) {
     int len = strlen(buf);
     int i;
-
     // Copy all characters up to the first '\t'
     for(i = 0; i < len; i++) {
-      if (buf[i] != '\t')
+      if (buf[i] != '!')
       {
         prefix[i] = buf[i];
       }
@@ -318,10 +317,10 @@ void completecmd(char *buf) {
     else if (match_count == 1) { 
       //shayan
 
-      for (int i = 0; i < strlen(buf); i++)
-      {
-        buf[i]=' ';
-      }
+      // for (int i = 0; i < strlen(buf); i++)
+      // {
+      //   buf[i]=' ';
+      // }
       
       // this is my own format shayan 
       printf(2,"\t%s\t", matches[0]);
@@ -340,16 +339,13 @@ void completecmd(char *buf) {
         for (int i = 0; i < match_count; i++) {
             printf(2, "%s  ", matches[i]);
         }
-        printf(2,"%s", "\n$ "); printf(2,"@%s@" ,buf);
-      for (int i = 0; i < strlen(buf); i++)
-      {
-        buf[i]=' ';
-      }
-      tab_count=0;
-      match_count=0;
+        printf(2,"%s", "\n$ "); ;printf(2,"@%s@" ,prefix);
+      // for (int i = 0; i < strlen(buf); i++)
+      // {
+      //   buf[i]=' ';
+      // }
     }
-// if (tab_count==2)
-//       tab_count=0;
+
     // printf(2, "Prefix: %s, tab_count: %d\n", prefix, tab_count);
 }
 
@@ -377,8 +373,7 @@ void completecmd(char *buf) {
 
 
 
-
-
+int last_tab=-1;
 
 int
 getcmd(char *buf, int nbuf)
@@ -395,16 +390,24 @@ getcmd(char *buf, int nbuf)
 
         // If the user presses Tab:
         if (c == '\t') {
+            last_tab=i;
+            buf[i++] = '!';
             completecmd(buf);  // Call the logic to calculate the completion.
             // After autocompletion, the shell sends the completion to the kernel.
             // The kernel stuffs it in the input buffer and wakes us up.
             // Now, we loop again to read the newly completed line from the start.
             // The read() call above will now receive the characters we just sent.
+            
             continue; // Continue the for loop to read the completed text
         }
         
         // If the user presses Enter, the command is done.
         if(c == '\n' || c == '\r'){
+            for (int j = 0; j <= last_tab; j++)
+            {
+              buf[j] = ' ';
+            }
+            
             buf[i++] = c;
             break;
         }
