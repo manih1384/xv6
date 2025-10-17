@@ -651,7 +651,6 @@ consoleread(struct inode *ip, char *dst, int n)
       sleep(&input.r, &cons.lock);
     }
 
-
     if (tab_flag==0)
     {
           c = input.buf[input.r++ % INPUT_BUF];

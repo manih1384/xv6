@@ -340,7 +340,7 @@ void completecmd(char *buf) {
         for (int i = 0; i < match_count; i++) {
             printf(2, "%s  ", matches[i]);
         }
-        printf(2,"%s", "\n$ "); ;printf(2,"@%s@" ,buf);
+        printf(2,"%s", "\n$ "); printf(2,"@%s@" ,buf);
       for (int i = 0; i < strlen(buf); i++)
       {
         buf[i]=' ';
