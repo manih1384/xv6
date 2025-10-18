@@ -767,6 +767,12 @@ consolewrite(struct inode *ip, char *buf, int n)
   }
   else if (buf[0]=='@'&&!doubletab_detected){
     while (input.e > input.r) {
+        delete_from_sequence(input.e-left_key_pressed_count);
+        for(int i=0;i<input_sequence.size;i++)
+          {
+            if(input_sequence.data[i]>(input.e-left_key_pressed_count) % INPUT_BUF)
+              input_sequence.data[i]--;
+          }
       shift_buffer_left(0);
       consputc(BACKSPACE);
       input.e--;
@@ -780,6 +786,12 @@ consolewrite(struct inode *ip, char *buf, int n)
     
     // this is like default case in consoleintr shayan
     char c = buf[0];
+          //     append_sequence((input.e-left_key_pressed_count) % INPUT_BUF);
+          for(int i=0;i<input_sequence.size;i++)
+          {
+            if(input_sequence.data[i]>(input.e-left_key_pressed_count) % INPUT_BUF)
+              input_sequence.data[i]++;
+          }
     consputc(c);
     input.buf[input.e++ % INPUT_BUF] = c;
 
