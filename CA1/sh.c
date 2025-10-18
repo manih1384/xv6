@@ -42,17 +42,6 @@ strncmp(const char *p, const char *q, uint n)
 
 
 
-
-
-char* knowncommands[] = {
-    "ls", "cat", "echo", "cd", "wait", "sh", "rm", "mkdir",
-    "ln", "kill", "init", "grep", "zombie", "grind",
-    // Add any other commands you have created here
-}; //newwwwwwwwwwwwww
-
-int num_known_commands = sizeof(knowncommands) / sizeof(knowncommands[0]);// newwwwwwwwwww
-
-
 // Helper function to update a buffer with the common prefix of itself and another string.
 // `prefix_buf` is the buffer holding the current longest common prefix.
 // `new_word` is the new word to compare against.
@@ -196,40 +185,6 @@ runcmd(struct cmd *cmd)
 }
 
 
-
-
-
-// Returns the index of the first char of the incomplete command before tab
-// buf: shell input buffer (null-terminated)
-// Returns -1 if no tab found
-// int find_incomplete_command_start(char *buf) {
-//     int i, tab_pos = -1;
-
-//     // 1. Find first tab character
-//     for (i = 0; buf[i] != 0; i++) {
-//         if (buf[i] == '\t') {
-//             tab_pos = i;
-//             break;
-//         }
-//     }
-
-//     if (tab_pos == -1)
-//         return -1; // no tab found
-
-//     // 2. Go backwards from tab to find last newline
-//     int start = 0;
-//     for (i = tab_pos - 1; i >= 0; i--) {
-//         if (buf[i] == '\n') {
-//             start = i + 1; // first char after '\n'
-//             break;
-//         }
-//     }
-
-//     return start; // index of first char of incomplete command
-// }
-
-
-
 char *builtins[] = {"cd",0}; // test shayan
 
 void getprefix(char *buf, char *prefix) {
@@ -315,14 +270,6 @@ void completecmd(char *buf) {
         // test reset last prefix shayan
     } 
     else if (match_count == 1) { 
-      //shayan
-
-      // for (int i = 0; i < strlen(buf); i++)
-      // {
-      //   buf[i]=' ';
-      // }
-      
-      // this is my own format shayan 
       printf(2,"\t%s\t", matches[0]);
       tab_count=0;
       match_count=0;
@@ -340,36 +287,8 @@ void completecmd(char *buf) {
             printf(2, "%s  ", matches[i]);
         }
         printf(2,"%s", "\n$ "); ;printf(2,"@%s@" ,prefix);
-      // for (int i = 0; i < strlen(buf); i++)
-      // {
-      //   buf[i]=' ';
-      // }
     }
-
-    // printf(2, "Prefix: %s, tab_count: %d\n", prefix, tab_count);
 }
-
-
-
-// test old gets, shayan
-  // int getcmd(char *buf, int nbuf)
-  // {
-  //     printf(2, "$ ");
-  //     memset(buf, 0, nbuf);
-
-  //     gets(buf, nbuf);
-
-  //     completecmd(buf);
-      
-  //     if(buf[0] == 0) // EOF
-  //         return -1;
-
-
-
-  //     return 0;
-  // }
-// Add this function to your console.c or wherever you need it
-
 
 
 
@@ -407,7 +326,7 @@ getcmd(char *buf, int nbuf)
             {
               buf[j] = ' ';
             }
-            
+            last_tab = -1;
             buf[i++] = c;
             break;
         }

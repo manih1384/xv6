@@ -383,22 +383,6 @@ void clear_sequence(void) {
     input_sequence.size = 0;
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 #define C(x)  ((x)-'@')  // Control-x
 #define LEFT_ARROW   0xE4    
 #define RIGHT_ARROW 0xE5 
@@ -581,12 +565,30 @@ consoleintr(int (*getc)(void))
             select_mode = 0;
           }
         }
-        else if (select_mode == 2) {  
-          if (c == C('H') || c == '\x7f') {
-            // Backspace - let it pass through
+        else if (select_mode == 2) {
+          if (c == RIGHT_ARROW) {
+            clear_highlight_from_buffer();
+            select_mode = 0;
           }
-          else if (c == C('C')) {
-            // Copy - let it pass through  
+          else if (c == LEFT_ARROW) {
+            clear_highlight_from_buffer();
+            select_mode = 0;
+          }
+          else if (c == C('A')) {
+            clear_highlight_from_buffer();
+            select_mode = 0;
+          }
+          else if (c == C('D')) {
+            clear_highlight_from_buffer();
+            select_mode = 0;
+          }
+          else if (c == C('Z')) {
+            clear_highlight_from_buffer();
+            select_mode = 0;
+          }
+          else if (c == C('H') || c == '\x7f') {// nothing
+          }
+          else if (c == C('C')) {//nothing
           }
           else if(
             c != RIGHT_ARROW && c != LEFT_ARROW &&
@@ -649,7 +651,6 @@ consoleintr(int (*getc)(void))
             pos++;
             }
         int distance = pos - (input.e-left_key_pressed_count);
-                // cgaputc('0' + distance);
         for (int i = 0; i < distance; i++)
             move_cursor_right();
 
@@ -763,8 +764,7 @@ consoleintr(int (*getc)(void))
       }
       else if (select_mode == 2) {
         clear_highlight_from_buffer();
-        select_mode = 1;
-        select_start = input.e - left_key_pressed_count;
+        select_mode = 0;
       }
       break;
 
@@ -910,56 +910,6 @@ consoleread(struct inode *ip, char *dst, int n)
   return target - n;
 }
 
-// int
-// consoleread(struct inode *ip, char *dst, int n)
-// {
-//   uint target = n;
-//   int c;
-
-//   iunlock(ip);
-//   acquire(&cons.lock);
-
-//   while (n > 0) {
-//     // Sleep until input is available OR Tab is pressed
-//     while (input.r == input.w && tab_flag == 0) {
-//       if (myproc()->killed) {
-//         release(&cons.lock);
-//         ilock(ip);
-//         return -1;
-//       }
-//       sleep(&input.r, &cons.lock);
-//     }
-
-//     if (tab_flag) {
-//       // Send single tab signal to shell
-//       tab_flag = 0;
-//       *dst++ = '\t';
-//       n--;
-//       break;
-//     }
-
-//     // Normal case: consume one char
-//     c = input.buf[input.r++ % INPUT_BUF];
-
-//     if (c == C('D')) { // EOF
-//       if (n < target)
-//         input.r--;
-//       break;
-//     }
-
-//     *dst++ = c;
-//     n--;
-
-//     if (c == '\n')
-//       break;
-//   }
-
-//   release(&cons.lock);
-//   ilock(ip);
-//   return target - n;
-// }
-
-
 
 int autocomplete_w=0; //flag for writing to console buffer
 int doubletab_detected=0;
@@ -979,7 +929,7 @@ consolewrite(struct inode *ip, char *buf, int n)
   }
   else if (buf[0]=='@'&&doubletab_detected){
     doubletab_detected=0;
-    input.tabr=input.r;          //shayannnnn: reset the tabr when a autocorrecting proccess is over so that case tab would work again (not sure)
+    input.tabr=input.r;
   }
   else if (buf[0]!='@'&&buf[0]!='\t'&&doubletab_detected){
     char c = buf[0];
@@ -1048,123 +998,6 @@ consolewrite(struct inode *ip, char *buf, int n)
 
 }
 
-
-
-// int
-// consolewrite(struct inode *ip, char *buf, int n)
-// {
-//   int i;
-
-//   iunlock(ip);
-//   acquire(&cons.lock);
-
-//   // --- AUTOCOMPLETE HANDLER ---
-// if (buf[0] == '\t') {
-//   // --- erase previous input visually and logically ---
-//   while (input.e > input.w) {
-//     consputc(BACKSPACE);
-//     input.e--;
-//   }
-//   // cgaputc('0'+input.e);
-//   // --- print new completed text ---
-//   for (i = 1; i <n ; i++) {
-//     char c = buf[i];
-//     consputc(c);   // prints to VGA and moves cursor
-//     input.buf[input.e++ % INPUT_BUF] = c;
-//   }
-
-//   cgaputc('0'+n);
-//   release(&cons.lock);
-//   ilock(ip);
-//   return n;
-// }
-
-
-//   // --- NORMAL WRITE PATH ---
-//   for (i = 0; i < n; i++)
-//     consputc(buf[i] & 0xff);
-
-//   release(&cons.lock);
-//   ilock(ip);
-//   return n;
-// }
-
-
-
-
-
-
-
-
-
-
-
-
-// int
-// consolewrite(struct inode *ip, char *buf, int n)
-// {
-//   int i;
-//   // These flags manage the tab completion protocol
-//   int tabcomplete = 0;
-//   int writestdin = 0; 
-
-//   iunlock(ip);
-//   acquire(&cons.lock);
-  
-//   for(i = 0; i < n; i++){
-//     char c = buf[i] & 0xff;
-
-//     // STEP 1: Detect the special tab completion message from the shell.
-//     // A single '\t' at the start of a write() call initiates the protocol.
-//     if(i == 0 && c == '\t') {
-//       tabcomplete = 1;
-//       continue;
-//     }
-
-//     if(tabcomplete) {
-//       // STEP 2: A second '\t' in the message means the shell wants us to 
-//       // not only add the text to the buffer but also echo it to the screen.
-//       if (c == '\t') {
-//         writestdin = 1; 
-//         continue;
-//       }
-
-//       // STEP 3: Stuff the completion characters into the kernel's input buffer.
-//       // This is the "backdoor" that lets the shell modify the command line.
-//       if(input.e-input.r < INPUT_BUF) {
-//           if (writestdin) {
-//             // We need to simulate typing, so we handle insertions and screen updates correctly.
-//             shift_buffer_right();
-//             input.buf[(input.e++ - left_key_pressed_count) % INPUT_BUF] = c;
-//             consputc(c);
-//           } else {
-//             // If writestdin is false, we only update the buffer without echoing.
-//             // (This is not used in the current shell logic, but is good practice to have)
-//             input.buf[input.e++ % INPUT_BUF] = c;
-//           }
-//       }
-//     } else {
-//       // If not a tab completion message, just do a normal character write.
-//       consputc(c);
-//     }
-//   }
-
-//   // After the shell has modified our buffer, wake it up so it can re-read the now-completed line.
-//   if (tabcomplete) {
-//       input.w = input.e;
-//       wakeup(&input.r);
-//   }
-
-//   release(&cons.lock);
-//   ilock(ip);
-
-//   return n;
-// }
-
-
-
-
-
 void
 consoleinit(void)
 {
@@ -1176,12 +1009,6 @@ consoleinit(void)
 
   ioapicenable(IRQ_KBD, 0);
 }
-
-
-
-
-
-
 
 void move_cursor_left(void){
   int pos;
