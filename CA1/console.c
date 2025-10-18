@@ -328,6 +328,7 @@ struct {
   uint r;  // Read index
   uint w;  // Write index
   uint e;  // Edit index
+  uint tabr; // tab read index
 } input;
 
 
@@ -559,6 +560,129 @@ void paste_text(void) {
 }
 
 
+void highlight_from_buffer_positions(void) {
+  if (select_mode != 2) return;
+  
+  // Get current cursor screen position
+  int cursor_screen_pos;
+  outb(CRTPORT, 14);
+  cursor_screen_pos = inb(CRTPORT+1) << 8;
+  outb(CRTPORT, 15);
+  cursor_screen_pos |= inb(CRTPORT+1);
+  
+  // Calculate where buffer position 0 is on screen
+  // cursor_screen_pos = line_start + prompt_length + (input.e - left_key_pressed_count)
+  // So: line_start = cursor_screen_pos - prompt_length - (input.e - left_key_pressed_count)
+  int prompt_length = 2; // Since we have  "$ " or "> " at the start of the line we need to skip those
+  int line_start = cursor_screen_pos - prompt_length - (input.e - left_key_pressed_count);
+  
+  // Now we can directly map buffer indices to screen positions!
+  for (int buf_pos = select_start; buf_pos < select_end && buf_pos < input.e; buf_pos++) {
+      int screen_pos = line_start + prompt_length + buf_pos;
+      
+      if (screen_pos >= 0 && screen_pos < 80*25) {
+          crt[screen_pos] = (crt[screen_pos] & 0x00FF) | 0x7000;
+      }
+  }
+}
+
+void clear_highlight_from_buffer(void) {
+  if (select_mode != 2) return;
+  
+  // Same calculation
+  int cursor_screen_pos;
+  outb(CRTPORT, 14);
+  cursor_screen_pos = inb(CRTPORT+1) << 8;
+  outb(CRTPORT, 15);
+  cursor_screen_pos |= inb(CRTPORT+1);
+  
+  int prompt_length = 2;
+  int line_start = cursor_screen_pos - prompt_length - (input.e - left_key_pressed_count);
+  
+  for (int buf_pos = select_start; buf_pos < select_end && buf_pos < input.e; buf_pos++) {
+      int screen_pos = line_start + prompt_length + buf_pos;
+      
+      if (screen_pos >= 0 && screen_pos < 80*25) {
+          // Restore normal color
+          crt[screen_pos] = (crt[screen_pos] & 0x00FF) | 0x0700;
+      }
+  }
+}
+
+void delete_selected_area(void) {
+  if (select_start == select_end) return;
+  
+  int select_length = select_end - select_start;
+  
+  int current_pos = input.e - left_key_pressed_count;
+  int move_distance = select_end - current_pos;
+  
+  if (move_distance > 0) {
+      for (int i = 0; i < move_distance; i++) {
+          if(input.e > current_pos) {
+              left_key_pressed_count--;
+              move_cursor_right();
+              current_pos++;
+          }
+      }
+  } else if (move_distance < 0) {
+      for (int i = 0; i < -move_distance; i++) {
+          if(input.w < current_pos) {
+              left_key_pressed_count++;
+              move_cursor_left();
+              current_pos--;
+          }
+      }
+  }
+  
+  for (int i = 0; i < select_length; i++) {
+      if(input.e != input.w){
+          shift_buffer_left(0);
+          delete_from_sequence(input.e - left_key_pressed_count);
+          for(int j = 0; j < input_sequence.size; j++) {
+              if(input_sequence.data[j] > (input.e - left_key_pressed_count) % INPUT_BUF)
+                  input_sequence.data[j]--;
+          }
+          input.e--;
+          consputc(BACKSPACE);
+      }
+  }
+}
+
+void copy_selected_text(void) {
+  copied_length = 0;
+  for (int i = select_start; i < select_end && copied_length < INPUT_BUF - 1; i++) {
+    copied_text[copied_length] = input.buf[i % INPUT_BUF];
+    copied_length++;
+  }
+  copied_text[copied_length] = '\0';
+}
+void paste_text(void) {
+  if (copied_length == 0) return;
+  if (select_mode == 2) {
+      delete_selected_area();
+  }
+  
+  if (input.e + copied_length >= INPUT_BUF) {
+      return;
+  }
+  
+  for (int i = 0; i < copied_length; i++) {
+    char c = copied_text[i];
+    
+    shift_buffer_right();
+    
+    input.buf[(input.e - left_key_pressed_count) % INPUT_BUF] = c;
+    input.e++;
+    consputc(c);
+  }
+}
+
+
+
+
+int tab_flag=0;
+int tab_flag2=0;
 void
 consoleintr(int (*getc)(void))
 {
@@ -733,7 +857,7 @@ consoleintr(int (*getc)(void))
         }
       break;
 
-    case C('Z'):  // Backspace
+    case C('Z'):  
       if(input.e != input.w){
         shift_buffer_left(1);
         input.e--;
@@ -779,6 +903,26 @@ consoleintr(int (*getc)(void))
       }
       break;
 
+       break;  
+
+
+
+
+    case '\t': //tab
+    if (input.tabr<input.e)
+    {
+      input.tabr=input.r;
+    }
+      
+      tab_flag=1;
+      input.buf[(input.e++) % INPUT_BUF] = '\t';
+      wakeup(&input.r);
+      break;
+
+
+
+
+         
     default:
       
       if(c != 0 && input.e-input.r < INPUT_BUF){
@@ -826,17 +970,19 @@ consoleintr(int (*getc)(void))
   }
 }
 
+
+
 int
 consoleread(struct inode *ip, char *dst, int n)
 {
   uint target;
   int c;
-
+  // cgaputc('0'+input.e);
   iunlock(ip);
   target = n;
   acquire(&cons.lock);
   while(n > 0){
-    while(input.r == input.w){
+    while ((!tab_flag && input.r == input.w) || (tab_flag && input.tabr == input.e)) {
       if(myproc()->killed){
         release(&cons.lock);
         ilock(ip);
@@ -844,18 +990,37 @@ consoleread(struct inode *ip, char *dst, int n)
       }
       sleep(&input.r, &cons.lock);
     }
-    c = input.buf[input.r++ % INPUT_BUF];
-    if(c == C('D')){  // EOF
-      if(n < target){
-        // Save ^D for next time, to make sure
-        // caller gets a 0-byte result.
-        input.r--;
-      }
-      break;
+
+    if (tab_flag==0)
+    {
+          c = input.buf[input.r++ % INPUT_BUF];
+          if(c == C('D')){  // EOF
+          if(n < target){
+            // Save ^D for next time, to make sure
+            // caller gets a 0-byte result.
+            input.r--;
+          }
+          break;
+        }
+        *dst++ =c;
     }
-    *dst++ = c;
+    else
+    {
+      c = input.buf[input.tabr++ % INPUT_BUF];
+      *dst++ =c;
+    
+    }
+    
+
+    if (input.tabr==input.e)
+    {
+      tab_flag=0;
+    }
+    
+ 
+    
     --n;
-    if(c == '\n')
+    if(c == '\n' || c=='\t')
       break;
   }
   release(&cons.lock);
@@ -864,6 +1029,60 @@ consoleread(struct inode *ip, char *dst, int n)
   return target - n;
 }
 
+// int
+// consoleread(struct inode *ip, char *dst, int n)
+// {
+//   uint target = n;
+//   int c;
+
+//   iunlock(ip);
+//   acquire(&cons.lock);
+
+//   while (n > 0) {
+//     // Sleep until input is available OR Tab is pressed
+//     while (input.r == input.w && tab_flag == 0) {
+//       if (myproc()->killed) {
+//         release(&cons.lock);
+//         ilock(ip);
+//         return -1;
+//       }
+//       sleep(&input.r, &cons.lock);
+//     }
+
+//     if (tab_flag) {
+//       // Send single tab signal to shell
+//       tab_flag = 0;
+//       *dst++ = '\t';
+//       n--;
+//       break;
+//     }
+
+//     // Normal case: consume one char
+//     c = input.buf[input.r++ % INPUT_BUF];
+
+//     if (c == C('D')) { // EOF
+//       if (n < target)
+//         input.r--;
+//       break;
+//     }
+
+//     *dst++ = c;
+//     n--;
+
+//     if (c == '\n')
+//       break;
+//   }
+
+//   release(&cons.lock);
+//   ilock(ip);
+//   return target - n;
+// }
+
+
+
+int autocomplete_w=0; //flag for writing to console buffer
+int doubletab_detected=0;
+
 int
 consolewrite(struct inode *ip, char *buf, int n)
 {
@@ -871,13 +1090,199 @@ consolewrite(struct inode *ip, char *buf, int n)
 
   iunlock(ip);
   acquire(&cons.lock);
-  for(i = 0; i < n; i++)
-    consputc(buf[i] & 0xff);
+
+
+  if (buf[0] == '\t' && autocomplete_w) {
+    autocomplete_w=0;
+    input.tabr=input.r;
+  }
+  else if (buf[0]=='@'&&doubletab_detected){
+    doubletab_detected=0;
+    input.tabr=input.r;          //shayannnnn: reset the tabr when a autocorrecting proccess is over so that case tab would work again (not sure)
+  }
+  else if (buf[0]!='@'&&buf[0]!='\t'&&doubletab_detected){
+    char c = buf[0];
+    consputc(c);
+    input.buf[input.e++ % INPUT_BUF] = c;
+  }
+  else if (buf[0]=='@'&&!doubletab_detected){
+    while (input.e > input.r) {
+        delete_from_sequence(input.e-left_key_pressed_count);
+        for(int i=0;i<input_sequence.size;i++)
+          {
+            if(input_sequence.data[i]>(input.e-left_key_pressed_count) % INPUT_BUF)
+              input_sequence.data[i]--;
+          }
+      shift_buffer_left(0);
+      consputc(BACKSPACE);
+      input.e--;
+    }
+    cgaputc(' '); // an extra space for logic to match screen
+    doubletab_detected=1;
+    cgaputc('$'); cgaputc(' ');
+  }
+  else if (buf[0]!='\t' && autocomplete_w)
+  {
+    
+    // this is like default case in consoleintr shayan
+    char c = buf[0];
+          //     append_sequence((input.e-left_key_pressed_count) % INPUT_BUF);
+          for(int i=0;i<input_sequence.size;i++)
+          {
+            if(input_sequence.data[i]>(input.e-left_key_pressed_count) % INPUT_BUF)
+              input_sequence.data[i]++;
+          }
+    consputc(c);
+    input.buf[input.e++ % INPUT_BUF] = c;
+
+
+  }
+
+  else if (buf[0]=='\t' && !autocomplete_w)
+  {
+    // first tab seen turn on auto complete
+    //erase what we wrote at first
+    while (input.e > input.r) {
+      shift_buffer_left(0);
+      consputc(BACKSPACE);
+      input.e--;
+    }
+    cgaputc(' '); // an extra space for logic to match screen
+    autocomplete_w=1;
+  }
+  else  if(buf[0]!='\t' && !autocomplete_w)
+  {
+    // write normaly
+    for (i = 0; i < n; i++)
+      consputc(buf[i] & 0xff);
+
+
+  }
+  
   release(&cons.lock);
   ilock(ip);
-
   return n;
+  
+
+
 }
+
+
+
+// int
+// consolewrite(struct inode *ip, char *buf, int n)
+// {
+//   int i;
+
+//   iunlock(ip);
+//   acquire(&cons.lock);
+
+//   // --- AUTOCOMPLETE HANDLER ---
+// if (buf[0] == '\t') {
+//   // --- erase previous input visually and logically ---
+//   while (input.e > input.w) {
+//     consputc(BACKSPACE);
+//     input.e--;
+//   }
+//   // cgaputc('0'+input.e);
+//   // --- print new completed text ---
+//   for (i = 1; i <n ; i++) {
+//     char c = buf[i];
+//     consputc(c);   // prints to VGA and moves cursor
+//     input.buf[input.e++ % INPUT_BUF] = c;
+//   }
+
+//   cgaputc('0'+n);
+//   release(&cons.lock);
+//   ilock(ip);
+//   return n;
+// }
+
+
+//   // --- NORMAL WRITE PATH ---
+//   for (i = 0; i < n; i++)
+//     consputc(buf[i] & 0xff);
+
+//   release(&cons.lock);
+//   ilock(ip);
+//   return n;
+// }
+
+
+
+
+
+
+
+
+
+
+
+
+// int
+// consolewrite(struct inode *ip, char *buf, int n)
+// {
+//   int i;
+//   // These flags manage the tab completion protocol
+//   int tabcomplete = 0;
+//   int writestdin = 0; 
+
+//   iunlock(ip);
+//   acquire(&cons.lock);
+  
+//   for(i = 0; i < n; i++){
+//     char c = buf[i] & 0xff;
+
+//     // STEP 1: Detect the special tab completion message from the shell.
+//     // A single '\t' at the start of a write() call initiates the protocol.
+//     if(i == 0 && c == '\t') {
+//       tabcomplete = 1;
+//       continue;
+//     }
+
+//     if(tabcomplete) {
+//       // STEP 2: A second '\t' in the message means the shell wants us to 
+//       // not only add the text to the buffer but also echo it to the screen.
+//       if (c == '\t') {
+//         writestdin = 1; 
+//         continue;
+//       }
+
+//       // STEP 3: Stuff the completion characters into the kernel's input buffer.
+//       // This is the "backdoor" that lets the shell modify the command line.
+//       if(input.e-input.r < INPUT_BUF) {
+//           if (writestdin) {
+//             // We need to simulate typing, so we handle insertions and screen updates correctly.
+//             shift_buffer_right();
+//             input.buf[(input.e++ - left_key_pressed_count) % INPUT_BUF] = c;
+//             consputc(c);
+//           } else {
+//             // If writestdin is false, we only update the buffer without echoing.
+//             // (This is not used in the current shell logic, but is good practice to have)
+//             input.buf[input.e++ % INPUT_BUF] = c;
+//           }
+//       }
+//     } else {
+//       // If not a tab completion message, just do a normal character write.
+//       consputc(c);
+//     }
+//   }
+
+//   // After the shell has modified our buffer, wake it up so it can re-read the now-completed line.
+//   if (tabcomplete) {
+//       input.w = input.e;
+//       wakeup(&input.r);
+//   }
+
+//   release(&cons.lock);
+//   ilock(ip);
+
+//   return n;
+// }
+
+
+
+
 
 void
 consoleinit(void)

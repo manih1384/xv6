@@ -4,6 +4,7 @@
 #include "user.h"
 #include "fcntl.h"
 #include "fs.h"
+#include "stat.h" // added thattt
 // Parsed command representation
 #define EXEC  1
 #define REDIR 2
@@ -12,6 +13,70 @@
 #define BACK  5
 
 #define MAXARGS 10
+
+
+// In string.c, add this code at the end of the file.
+
+char*
+strncpy(char *s, const char *t, int n)
+{
+  char *os;
+
+  os = s;
+  while(n-- > 0 && (*s++ = *t++) != 0)
+    ;
+  while(n-- > 0)
+    *s++ = 0;
+  return os;
+}
+
+int
+strncmp(const char *p, const char *q, uint n)
+{
+  while(n > 0 && *p && *p == *q)
+    n--, p++, q++;
+  if(n == 0)
+    return 0;
+  return (uchar)*p - (uchar)*q;
+}
+
+
+
+
+
+char* knowncommands[] = {
+    "ls", "cat", "echo", "cd", "wait", "sh", "rm", "mkdir",
+    "ln", "kill", "init", "grep", "zombie", "grind",
+    // Add any other commands you have created here
+}; //newwwwwwwwwwwwww
+
+int num_known_commands = sizeof(knowncommands) / sizeof(knowncommands[0]);// newwwwwwwwwww
+
+
+// Helper function to update a buffer with the common prefix of itself and another string.
+// `prefix_buf` is the buffer holding the current longest common prefix.
+// `new_word` is the new word to compare against.
+// `max_len` is the size of prefix_buf.
+void update_common_prefix(char *prefix_buf, const char *new_word, int max_len) {
+    int len = 0;
+    // Find length of common prefix
+    while (len < max_len - 1 && prefix_buf[len] && new_word[len] && prefix_buf[len] == new_word[len]) {
+        len++;
+    }
+    // Null-terminate the prefix buffer at the end of the common part.
+    prefix_buf[len] = '\0';
+}
+
+
+
+
+void autocompletion(char *buf)
+{
+  printf(2,"aaaa");
+}
+
+// Forward declaration for getcmd
+int getcmd(char *buf, int nbuf);
 
 struct cmd {
   int type;
@@ -133,87 +198,231 @@ runcmd(struct cmd *cmd)
 
 
 
-// void
-// autocompletion(char *buf, int pos, int tab_count)
-// {
-//   int i;
-//   char prefix[DIRSIZ+1];
-//   int start = 0;
 
-//   // Find where the last word starts (after last space)
-//   for (i = pos - 1; i >= 0; i--) {
-//     if (buf[i] == ' ' || buf[i] == '\n' || buf[i] == '\r') {
-//       start = i + 1;
-//       break;
+// Returns the index of the first char of the incomplete command before tab
+// buf: shell input buffer (null-terminated)
+// Returns -1 if no tab found
+// int find_incomplete_command_start(char *buf) {
+//     int i, tab_pos = -1;
+
+//     // 1. Find first tab character
+//     for (i = 0; buf[i] != 0; i++) {
+//         if (buf[i] == '\t') {
+//             tab_pos = i;
+//             break;
+//         }
 //     }
-//   }
 
-//   // Copy that part into prefix[]
-//   int j = 0;
-//   while (start + j < pos && j < DIRSIZ) {
-//     prefix[j] = buf[start + j];
-//     j++;
-//   }
-//   prefix[j] = '\0';
+//     if (tab_pos == -1)
+//         return -1; // no tab found
 
-//   // Debug print to test your extraction first:
-  
+//     // 2. Go backwards from tab to find last newline
+//     int start = 0;
+//     for (i = tab_pos - 1; i >= 0; i--) {
+//         if (buf[i] == '\n') {
+//             start = i + 1; // first char after '\n'
+//             break;
+//         }
+//     }
+
+//     return start; // index of first char of incomplete command
 // }
 
 
 
-//   char*
-//   gets_modified(char *buf, int max)
-//   {
+char *builtins[] = {"cd",0}; // test shayan
+
+void getprefix(char *buf, char *prefix) {
+    int len = strlen(buf);
+    int i;
+    // Copy all characters up to the first '\t'
+    for(i = 0; i < len; i++) {
+      if (buf[i] != '!')
+      {
+        prefix[i] = buf[i];
+      }
+      else
+      {
+        // memset(buf, 0, strlen(buf));
+        break;
+      }
+      
+      
+        
+    }
     
-//     int i, cc;
-//     char c;
-//     int tab_count = 0;
-
-//     for (i = 0; i + 1 < max; ) {
-//       cc = read(0, &c, 1);
-//       printf(2, "$ ");
-//       if (cc < 1)
-//         break;
-
-//       if (c == '\t') {
-//         tab_count++;
-//         autocompletion(buf,i,tab_count);
-//         continue;   // don’t put '\t' in buffer
-//       } else {
-//         tab_count = 0;
-//       }
-
-//       buf[i++] = c;
-
-//       if (c == '\n' || c == '\r')
-//         break;
-//     }
-
-//     buf[i] = '\0';
-//     return buf;
-//   }
+    prefix[i] = '\0';  // null-terminate the prefix
+}
 
 
 
+    
+
+// reset last prefix shayan
+void completecmd(char *buf) {
+    static char last_prefix[100] = "";
+    static int tab_count = 0;
+    char prefix[100];
+    getprefix(buf, prefix);
+
+    if (strlen(prefix) == 0)
+        return;
+
+    if (strcmp(prefix, last_prefix) != 0) {
+        tab_count = 1;
+        strcpy(last_prefix, prefix);
+    } else {
+        tab_count++;
+    }
+    
+    // Prepare match list
+    char matches[100][DIRSIZ+1]; // 100 matches, each max DIRSIZ chars
+    int match_count = 0;
+
+    // Check built-ins
+    for (int i = 0; builtins[i]; i++) {
+        if (strncmp(prefix, builtins[i], strlen(prefix)) == 0) {
+            strncpy(matches[match_count], builtins[i], DIRSIZ);
+            matches[match_count][DIRSIZ] = '\0';
+            match_count++;
+        }
+    }
+
+    // Check files in current directory
+    int fd;
+    struct dirent de;
+    struct stat st;
+    if ((fd = open(".", 0)) >= 0) {
+        while (read(fd, &de, sizeof(de)) == sizeof(de)) {
+            if (de.inum == 0) continue;
+            if (strncmp(prefix, de.name, strlen(prefix)) == 0) {
+                strncpy(matches[match_count], de.name, DIRSIZ);
+                matches[match_count][DIRSIZ] = '\0';
+                match_count++;
+            }
+        }
+        close(fd);
+    }
+    
+    
+
+    
+
+    // Decide what to do based on match_count and tab_count
+    if (match_count == 0) { 
+        // nothing matches → do nothing
+        
+        // test reset last prefix shayan
+    } 
+    else if (match_count == 1) { 
+      //shayan
+
+      // for (int i = 0; i < strlen(buf); i++)
+      // {
+      //   buf[i]=' ';
+      // }
+      
+      // this is my own format shayan 
+      printf(2,"\t%s\t", matches[0]);
+      tab_count=0;
+      match_count=0;
+
+    } 
+
+    else if (tab_count == 1 && match_count > 1) { 
+        // first tab with multiple matches → do nothing
+    } 
+
+    else if (tab_count > 1 && match_count > 1) { 
+        // second tab or more → show all matches
+        printf(2, "\nMatches:\n");
+        for (int i = 0; i < match_count; i++) {
+            printf(2, "%s  ", matches[i]);
+        }
+        printf(2,"%s", "\n$ "); ;printf(2,"@%s@" ,prefix);
+      // for (int i = 0; i < strlen(buf); i++)
+      // {
+      //   buf[i]=' ';
+      // }
+    }
+
+    // printf(2, "Prefix: %s, tab_count: %d\n", prefix, tab_count);
+}
+
+
+
+// test old gets, shayan
+  // int getcmd(char *buf, int nbuf)
+  // {
+  //     printf(2, "$ ");
+  //     memset(buf, 0, nbuf);
+
+  //     gets(buf, nbuf);
+
+  //     completecmd(buf);
+      
+  //     if(buf[0] == 0) // EOF
+  //         return -1;
+
+
+
+  //     return 0;
+  // }
+// Add this function to your console.c or wherever you need it
 
 
 
 
-  int getcmd(char *buf, int nbuf)
-  {
-      printf(2, "$ ");
-      memset(buf, 0, nbuf);
+int last_tab=-1;
 
-      gets(buf, nbuf);
+int
+getcmd(char *buf, int nbuf)
+{
+    printf(2, "$ ");
+    memset(buf, 0, nbuf);
+    int i = 0;
+    char c;
 
-      if(buf[0] == 0) // EOF
-          return -1;
+    // Loop to read one character at a time.
+    for(i = 0; i+1 < nbuf; ){
+        if(read(0, &c, 1) < 1)
+            return -1; // EOF
+
+        // If the user presses Tab:
+        if (c == '\t') {
+            last_tab=i;
+            buf[i++] = '!';
+            completecmd(buf);  // Call the logic to calculate the completion.
+            // After autocompletion, the shell sends the completion to the kernel.
+            // The kernel stuffs it in the input buffer and wakes us up.
+            // Now, we loop again to read the newly completed line from the start.
+            // The read() call above will now receive the characters we just sent.
+            
+            continue; // Continue the for loop to read the completed text
+        }
+        
+        // If the user presses Enter, the command is done.
+        if(c == '\n' || c == '\r'){
+            for (int j = 0; j <= last_tab; j++)
+            {
+              buf[j] = ' ';
+            }
+            
+            buf[i++] = c;
+            break;
+        }
+
+        // Add the character to our buffer.
+        buf[i++] = c;
+
+    }
+    buf[i] = '\0';
+    if(buf[0] == 0) // EOF
+        return -1;
+    return 0;
+}
 
 
-
-      return 0;
-  }
 
 
 int

@@ -60,8 +60,10 @@ gets(char *buf, int max)
     if(cc < 1)
       break;
     buf[i++] = c;
+    // inf loop here if you add c==\t shayan
     if(c == '\n' || c == '\r')
       break;
+      
   }
   buf[i] = '\0';
   return buf;
