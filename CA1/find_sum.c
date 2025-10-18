@@ -33,7 +33,6 @@ static int int_to_str(int num, char *buf) {
   }
 
 
-// extract digits (in reverse)
   while (num > 0) {
     buf[i++] = '0' + (num % 10);
     num /= 10;
@@ -51,43 +50,40 @@ static int int_to_str(int num, char *buf) {
 
 
 
-
-
 int main(int argc, char *argv[]) {
-  if (argc != 2) {
+  if (argc < 2) {
     printf(2, "Usage: find_sum <string>\n");
     exit();
   }
-
-  char *s = argv[1];
 
   int sum = 0;
   int in_num = 0;
   int cur = 0;
 
-  for (int i = 0; s[i]; i++) {
-    char c = s[i];
-    if (c >= '0' && c <= '9') {
-      in_num = 1;
-      cur = cur * 10 + (c - '0');
-    } else {
-      if (in_num) {
-        sum += cur;
-        cur = 0;
-        in_num = 0;
+  for (int a = 1; a < argc; a++) {
+    char *s = argv[a];
+    for (int i = 0; s[i]; i++) {
+      char c = s[i];
+      if (c >= '0' && c <= '9') {
+        in_num = 1;
+        cur = cur * 10 + (c - '0');
+      } else {
+        if (in_num) {
+          sum += cur;
+          cur = 0;
+          in_num = 0;
+        }
       }
     }
+    if (in_num) {
+      sum += cur;
+      cur = 0;
+      in_num = 0;
+    }
   }
-  if (in_num) sum += cur; 
 
-
-
-  unlink(OUTPUT); // works like rm 
-
-
-  int fd = open(OUTPUT, O_CREATE | O_WRONLY); // create or open file
-
-  
+  unlink(OUTPUT);
+  int fd = open(OUTPUT, O_CREATE | O_WRONLY);
   if (fd < 0) {
     printf(2, "find_sum: cannot create %s\n", OUTPUT);
     exit();
@@ -95,10 +91,9 @@ int main(int argc, char *argv[]) {
 
   char outbuf[32];
   int len = int_to_str(sum, outbuf);
-  write(fd, outbuf, len); 
+  write(fd, outbuf, len);
   write(fd, "\n", 1);
   close(fd);
-
 
   exit();
 }
