@@ -29,3 +29,20 @@ SYSCALL(getpid)
 SYSCALL(sbrk)
 SYSCALL(sleep)
 SYSCALL(uptime)
+
+
+
+
+#include "syscall.h"
+#include "traps.h"
+
+.globl simple_arithmetic_syscall
+simple_arithmetic_syscall:
+    pushl %ebx              # preserve callee-saved register
+    movl 8(%esp), %ebx      # a  (after pushl, first arg is at 8(%esp))
+    movl 12(%esp), %ecx     # b
+    movl $SYS_simple_arithmetic, %eax
+    int $T_SYSCALL          
+    popl %ebx
+    ret
+
