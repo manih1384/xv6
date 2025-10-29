@@ -89,3 +89,20 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+
+
+// it is void because we need to fetch them manually in a system call, from registers or stack
+int sys_simple_arithmetic(void)
+{
+  int a, b, result;
+
+  a = myproc()->tf->ebx;
+  b = myproc()->tf->ecx;
+
+  result = (a + b) * (a - b);
+
+  cprintf("Calc: (%d+%d)*(%d-%d) = %d\n", a, b, a, b, result);
+
+  return result;
+}

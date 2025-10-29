@@ -182,6 +182,8 @@ UPROGS=\
 	_wc\
 	_zombie\
 	_find_sum\
+	_pid\
+	_arithmatic\
 
 fs.img: mkfs README $(UPROGS)
 	./mkfs fs.img README $(UPROGS)
