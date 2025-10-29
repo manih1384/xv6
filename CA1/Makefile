@@ -184,6 +184,7 @@ UPROGS=\
 	_find_sum\
 	_pid\
 	_arithmatic\
+	_make_duplicate\
 
 fs.img: mkfs README $(UPROGS)
 	./mkfs fs.img README $(UPROGS)
