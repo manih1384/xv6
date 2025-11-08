@@ -548,3 +548,105 @@ int sys_make_duplicate(void)
 
   return rc;
 }
+
+
+static char*
+strstr(const char *haystack, const char *needle)
+{
+  int i, j;
+  int needle_len = strlen(needle);
+  int haystack_len = strlen(haystack);
+
+  if (needle_len == 0)
+    return (char*)haystack;
+
+  for (i = 0; i <= haystack_len - needle_len; i++) {
+    for (j = 0; j < needle_len; j++) {
+      if (haystack[i+j] != needle[j])
+        break;
+    }
+    if (j == needle_len)
+      return (char*)haystack + i;
+  }
+  return 0;
+}
+
+int
+sys_grep_syscall(void)
+{
+  char *keyword, *filename, *user_buffer;
+  int buffer_size;
+  struct inode *ip;
+  char *kernel_buf = 0;
+  int result = -1;
+
+  if (argstr(0, &keyword) < 0 || argstr(1, &filename) < 0 || argint(3, &buffer_size) < 0)
+    return -1;
+  if (argptr(2, &user_buffer, buffer_size) < 0)
+    return -1;
+
+  begin_op();
+
+  if ((ip = namei(filename)) == 0) {
+    end_op();
+    return -1;
+  }
+  ilock(ip);
+
+  if (ip->size == 0 || (kernel_buf = kalloc()) == 0) {
+    iunlockput(ip);
+    end_op();
+    return -1;
+  }
+
+  int bytes_to_read = (ip->size < PGSIZE) ? ip->size : (PGSIZE - 1);
+  if (readi(ip, kernel_buf, 0, bytes_to_read) != bytes_to_read) {
+    kfree(kernel_buf);
+    iunlockput(ip);
+    end_op();
+    return -1;
+  }
+  kernel_buf[bytes_to_read] = '\0';
+
+  iunlockput(ip);
+  end_op();
+
+  char *line_start = kernel_buf;
+  char *current_pos = kernel_buf;
+
+  while(current_pos < kernel_buf + bytes_to_read) {
+    char *line_end = current_pos;
+    while(line_end < kernel_buf + bytes_to_read && *line_end != '\n') {
+      line_end++;
+    }
+
+    char temp_char = *line_end;
+    *line_end = '\0';
+
+    if (strstr(line_start, keyword)) {
+      int line_len = strlen(line_start);
+      if(line_len > buffer_size - 1)
+          line_len = buffer_size - 1;
+
+      *line_end = temp_char;
+
+      if(copyout(myproc()->pgdir, (uint)user_buffer, line_start, line_len) == 0){
+        if(*line_end == '\n' && (line_len + 1 < buffer_size)){
+           copyout(myproc()->pgdir, (uint)user_buffer + line_len, "\n", 1);
+           copyout(myproc()->pgdir, (uint)user_buffer + line_len + 1, "\0", 1);
+        } else {
+           copyout(myproc()->pgdir, (uint)user_buffer + line_len, "\0", 1);
+        }
+        result = 0;
+      }
+      break;
+    }
+
+    *line_end = temp_char;
+    line_start = line_end + 1;
+    current_pos = line_start;
+  }
+
+  kfree(kernel_buf);
+  return result;
+}

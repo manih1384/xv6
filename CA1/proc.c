@@ -7,6 +7,12 @@
 #include "proc.h"
 #include "spinlock.h"
 
+
+
+
+#define PRI_HIGH   0
+#define PRI_NORMAL 1
+#define PRI_LOW    2
 struct {
   struct spinlock lock;
   struct proc proc[NPROC];
@@ -88,7 +94,7 @@ allocproc(void)
 found:
   p->state = EMBRYO;
   p->pid = nextpid++;
-
+  p->priority = PRI_NORMAL; //added this lineeeeeeeee
   release(&ptable.lock);
 
   // Allocate kernel stack.
@@ -149,7 +155,7 @@ userinit(void)
   acquire(&ptable.lock);
 
   p->state = RUNNABLE;
-
+  p->priority = PRI_NORMAL; // <-- ADD THIS LINE
   release(&ptable.lock);
 }
 
@@ -319,39 +325,104 @@ wait(void)
 //  - swtch to start running that process
 //  - eventually that process transfers control
 //      via swtch back to the scheduler.
+// void
+// scheduler(void)
+// {
+//   struct proc *p;
+//   struct cpu *c = mycpu();
+//   c->proc = 0;
+  
+//   for(;;){
+//     // Enable interrupts on this processor.
+//     sti();
+
+//     // Loop over process table looking for process to run.
+//     acquire(&ptable.lock);
+//     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+//       if(p->state != RUNNABLE)
+//         continue;
+
+//       // Switch to chosen process.  It is the process's job
+//       // to release ptable.lock and then reacquire it
+//       // before jumping back to us.
+//       c->proc = p;
+//       switchuvm(p);
+//       p->state = RUNNING;
+
+//       swtch(&(c->scheduler), p->context);
+//       switchkvm();
+
+//       // Process is done running for now.
+//       // It should have changed its p->state before coming back.
+//       c->proc = 0;
+//     }
+//     release(&ptable.lock);
+
+//   }
+// }
+
+
 void
 scheduler(void)
 {
   struct proc *p;
   struct cpu *c = mycpu();
   c->proc = 0;
+  int done1 = 0;
+  int done2 = 0;
   
   for(;;){
+    done1 = 0;
+    done2 = 0;
     // Enable interrupts on this processor.
     sti();
 
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      if(p->state != RUNNABLE)
+      if(p->state != RUNNABLE || p->priority != PRI_HIGH)
         continue;
-
-      // Switch to chosen process.  It is the process's job
-      // to release ptable.lock and then reacquire it
-      // before jumping back to us.
+      done1 = 1;
       c->proc = p;
       switchuvm(p);
       p->state = RUNNING;
-
+      // Switch to chosen process.  It is the process's job
+      // to release ptable.lock and then reacquire it
+      // before jumping back to us.
       swtch(&(c->scheduler), p->context);
       switchkvm();
-
       // Process is done running for now.
       // It should have changed its p->state before coming back.
       c->proc = 0;
+    } // comments where kept for one of the cases
+
+    if (done1 == 0) {
+      for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+        if(p->state != RUNNABLE || p->priority != PRI_NORMAL)
+          continue;
+        done2 = 1;
+        c->proc = p;
+        switchuvm(p);
+        p->state = RUNNING;
+        swtch(&(c->scheduler), p->context);
+        switchkvm();
+        c->proc = 0;
+      }
+    }
+    
+    if (done1 == 0 && done2 == 0) {
+      for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+        if(p->state != RUNNABLE || p->priority != PRI_LOW)
+          continue;
+        c->proc = p;
+        switchuvm(p);
+        p->state = RUNNING;
+        swtch(&(c->scheduler), p->context);
+        switchkvm();
+        c->proc = 0;
+      }
     }
     release(&ptable.lock);
-
   }
 }
 
@@ -531,4 +602,95 @@ procdump(void)
     }
     cprintf("\n");
   }
+}
+
+int
+sys_show_process_family(void)
+{
+  struct proc *p;
+  struct proc *target_proc = 0;
+  struct proc *parent_proc = 0;
+  int pid;
+  int has_children = 0;
+  int has_siblings = 0;
+
+  if(argint(0, &pid) < 0)
+    return -1;
+
+  acquire(&ptable.lock);
+
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    if(p->pid == pid){
+      target_proc = p;
+      break;
+    }
+  }
+
+  if(target_proc == 0){
+    release(&ptable.lock);
+    cprintf("Process with pid %d not found.\n", pid);
+    return -1;
+  }
+  
+  parent_proc = target_proc->parent;
+
+  if(parent_proc){
+    cprintf("My id: %d, My parent id: %d\n", target_proc->pid, parent_proc->pid);
+  } else {
+    cprintf("My id: %d, My parent id: (none)\n", target_proc->pid);
+  }
+
+  cprintf("Children of process %d:\n", pid);
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    if(p->parent == target_proc){
+      cprintf("Child pid: %d\n", p->pid);
+      has_children = 1;
+    }
+  }
+  if(!has_children){
+    cprintf("(No children)\n");
+  }
+
+  cprintf("Siblings of process %d:\n", pid);
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    if(parent_proc && p->parent == parent_proc && p->pid != pid){
+        cprintf("Sibling pid: %d\n", p->pid);
+        has_siblings = 1;
+    }
+  }
+  if(!has_siblings){
+    cprintf("(No siblings)\n");
+  }
+
+  release(&ptable.lock);
+  return 0;
+}
+
+int
+sys_set_priority_syscall(void)
+{
+  int pid, priority;
+  struct proc *p;
+  int found = 0;
+
+  if(argint(0, &pid) < 0 || argint(1, &priority) < 0)
+    return -1;
+  
+  if(priority < PRI_HIGH || priority > PRI_LOW)
+    return -1;
+
+  acquire(&ptable.lock);
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    if(p->pid == pid){
+      p->priority = priority;
+      found = 1;
+      break;
+    }
+  }
+  release(&ptable.lock);
+
+  if(found)
+  return 0;
+    else
+  return -1;
 }

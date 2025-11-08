@@ -185,6 +185,9 @@ UPROGS=\
 	_pid\
 	_arithmatic\
 	_make_duplicate\
+	_showfamilytest\
+	_grep_test\
+	_priority_test\
 
 fs.img: mkfs README $(UPROGS)
 	./mkfs fs.img README $(UPROGS)
@@ -257,6 +260,9 @@ EXTRA=\
 	printf.c umalloc.c\
 	README dot-bochsrc *.pl toc.* runoff runoff1 runoff.list\
 	.gdbinit.tmpl gdbutil\
+	showfamilytest.c\
+	grep_test.c\
+	priority_test.c\ 
 
 dist:
 	rm -rf dist
