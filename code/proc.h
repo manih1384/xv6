@@ -1,3 +1,16 @@
+
+
+
+// Core types for heterogeneous CPU model
+#define CORE_E 0   // Energy-efficient (even cpuid)
+#define CORE_P 1   // Performance (odd cpuid)
+
+
+
+
+
+
+
 // Per-CPU state
 struct cpu {
   uchar apicid;                // Local APIC ID
@@ -7,8 +20,18 @@ struct cpu {
   volatile uint started;       // Has the CPU started?
   int ncli;                    // Depth of pushcli nesting.
   int intena;                  // Were interrupts enabled before pushcli?
+
+  int core_type;               // CORE_E or CORE_P (even/odd cpuid)
+
   struct proc *proc;           // The process running on this cpu or null
 };
+
+
+
+
+
+
+
 
 extern struct cpu cpus[NCPU];
 extern int ncpu;
@@ -41,6 +64,8 @@ struct proc {
   enum procstate state;        // Process state
   int pid;                     // Process ID
   int priority;                // process priority
+  int qticks;                  // ticks used in current time slice (for RR quantum)
+
   struct proc *parent;         // Parent process
   struct trapframe *tf;        // Trap frame for current syscall
   struct context *context;     // swtch() here to run process
@@ -50,6 +75,7 @@ struct proc {
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
 };
+
 
 // Process memory is laid out contiguously, low addresses first:
 //   text

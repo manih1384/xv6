@@ -9,6 +9,7 @@
 
 
 
+#define SCHED_DEBUG 0
 
 #define PRI_HIGH   0
 #define PRI_NORMAL 1
@@ -94,8 +95,10 @@ allocproc(void)
 found:
   p->state = EMBRYO;
   p->pid = nextpid++;
-  p->priority = PRI_NORMAL; //added this lineeeeeeeee
+  p->priority = PRI_NORMAL; // existing
+  p->qticks = 0;            //no ticks used yet in its timeslice
   release(&ptable.lock);
+
 
   // Allocate kernel stack.
   if((p->kstack = kalloc()) == 0){
@@ -365,66 +368,59 @@ wait(void)
 void
 scheduler(void)
 {
-  struct proc *p;
   struct cpu *c = mycpu();
   c->proc = 0;
-  int done1 = 0;
-  int done2 = 0;
-  
+
+  int id = c - cpus;
+  c->core_type = (id % 2 == 0) ? CORE_E : CORE_P;
+
+  static int last[NCPU] = {0};
+
   for(;;){
-    done1 = 0;
-    done2 = 0;
     // Enable interrupts on this processor.
     sti();
 
     // Loop over process table looking for process to run.
+    // To implement round-robin we start from last[id],
+    // not from the beginning of the table every time.
     acquire(&ptable.lock);
-    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      if(p->state != RUNNABLE || p->priority != PRI_HIGH)
-        continue;
-      done1 = 1;
-      c->proc = p;
-      switchuvm(p);
-      p->state = RUNNING;
-      // Switch to chosen process.  It is the process's job
+
+    struct proc *p = 0;
+    int i;
+    int start = last[id];
+
+    for(i = 0; i < NPROC; i++){
+      int idx = (start + i) % NPROC;
+      if(ptable.proc[idx].state == RUNNABLE){
+        p = &ptable.proc[idx];
+        // Next time this CPU will start scanning after this process.
+        last[id] = (idx + 1) % NPROC;
+        break;
+      }
+    }
+
+    if(p){
+      // Switch to chosen process. It is the process's job
       // to release ptable.lock and then reacquire it
       // before jumping back to us.
-      swtch(&(c->scheduler), p->context);
+      c->proc = p;
+      switchuvm(p);
+      p->qticks = 0;         
+      p->state  = RUNNING;
+
+      swtch(&c->scheduler, p->context);
       switchkvm();
+
       // Process is done running for now.
       // It should have changed its p->state before coming back.
       c->proc = 0;
-    } // comments where kept for one of the cases
+    }
 
-    if (done1 == 0) {
-      for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-        if(p->state != RUNNABLE || p->priority != PRI_NORMAL)
-          continue;
-        done2 = 1;
-        c->proc = p;
-        switchuvm(p);
-        p->state = RUNNING;
-        swtch(&(c->scheduler), p->context);
-        switchkvm();
-        c->proc = 0;
-      }
-    }
-    
-    if (done1 == 0 && done2 == 0) {
-      for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-        if(p->state != RUNNABLE || p->priority != PRI_LOW)
-          continue;
-        c->proc = p;
-        switchuvm(p);
-        p->state = RUNNING;
-        swtch(&(c->scheduler), p->context);
-        switchkvm();
-        c->proc = 0;
-      }
-    }
     release(&ptable.lock);
   }
 }
+
+
 
 // Enter scheduler.  Must hold only ptable.lock
 // and have changed proc->state. Saves and restores

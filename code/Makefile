@@ -188,6 +188,7 @@ UPROGS=\
 	_showfamilytest\
 	_grep_test\
 	_priority_test\
+	_RRtest\
 
 fs.img: mkfs README $(UPROGS)
 	./mkfs fs.img README $(UPROGS)
