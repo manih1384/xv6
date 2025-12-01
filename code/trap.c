@@ -18,6 +18,11 @@ struct gatedesc idt[256];
 extern uint vectors[];  // in vectors.S: array of 256 entry pointers
 struct spinlock tickslock;
 uint ticks;
+extern struct {
+  struct spinlock lock;
+  struct proc proc[NPROC];
+} ptable;
+
 
 void
 tvinit(void)
@@ -111,8 +116,9 @@ trap(struct trapframe *tf)
   if(myproc() && myproc()->killed && (tf->cs & 3) == DPL_USER)
     exit();
 
-  // Preempt on timer interrupts
+  // Preempt if timer interrupt
   if(myproc() && myproc()->state == RUNNING && tf->trapno == T_IRQ0 + IRQ_TIMER){
+
     struct proc *p = myproc();
     int id = cpuid();
 
@@ -131,12 +137,31 @@ trap(struct trapframe *tf)
         yield();
       }
     } else {
-      // P-core: for now, preempt every tick (1-tick quantum)
-      if(SCHED_DEBUG)
-        cprintf("TIMER: ticks %d cpu %d pid %d qticks 1\n",
-                ticks, id, p->pid);
-      yield();
+      // P-core: check for preemption every tick
+      int should_yield = 0;
+
+      acquire(&ptable.lock);
+      for (int i = 0; i < NPROC; i++) {
+        if (ptable.proc[i].state == RUNNABLE) {
+          if (p->creation_time > ptable.proc[i].creation_time) {
+            should_yield = 1;
+            if (SCHED_DEBUG) {
+              cprintf("P-CORE PREEMPT: cpu %d curpid %d(ct=%d), better pid %d(ct=%d)\n",
+                      id, p->pid, p->creation_time,
+                      ptable.proc[i].pid, ptable.proc[i].creation_time);
+            }
+            break;
+          }
+        }
+      }
+      release(&ptable.lock);
+
+      if (should_yield) {
+        yield();
+      }
     }
+
+
   }
 
   // Check if the process has been killed since we yielded.

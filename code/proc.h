@@ -65,7 +65,7 @@ struct proc {
   int pid;                     // Process ID
   int priority;                // process priority
   int qticks;                  // ticks used in current time slice (for RR quantum)
-
+  uint creation_time;        // Time when process was created
   struct proc *parent;         // Parent process
   struct trapframe *tf;        // Trap frame for current syscall
   struct context *context;     // swtch() here to run process
