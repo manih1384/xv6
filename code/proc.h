@@ -5,10 +5,13 @@
 #define CORE_E 0   // Energy-efficient (even cpuid)
 #define CORE_P 1   // Performance (odd cpuid)
 
+struct proc;   // forward declaration 
 
 
-
-
+struct readyqueue {
+  struct proc *procs[NPROC];  // ready/runnable processes
+  int count;                  // number of processes in the queue
+};
 
 
 // Per-CPU state
@@ -24,6 +27,7 @@ struct cpu {
   int core_type;               // CORE_E or CORE_P (even/odd cpuid)
 
   struct proc *proc;           // The process running on this cpu or null
+  struct readyqueue rq;          // per-CPU ready queue
 };
 
 
@@ -66,6 +70,8 @@ struct proc {
   int priority;                // process priority
   int qticks;                  // ticks used in current time slice (for RR quantum)
   uint creation_time;        // Time when process was created
+  int home_core;               // which CPU this process is assigned to at first 
+
   struct proc *parent;         // Parent process
   struct trapframe *tf;        // Trap frame for current syscall
   struct context *context;     // swtch() here to run process
@@ -82,3 +88,6 @@ struct proc {
 //   original data and bss
 //   fixed-size stack
 //   expandable heap
+
+
+

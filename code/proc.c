@@ -8,11 +8,19 @@
 #include "spinlock.h"
 
 #define SCHED_DEBUG 0
-
+#define READYQ_DEBUG 0
+#define BALANCE_DEBUG 0
 #define PRI_HIGH 0
 #define PRI_NORMAL 1
 #define PRI_LOW 2
 extern uint ticks;
+extern int ncpu;
+static int next_core = 0; // next CPU index to assign new procs
+
+
+#define BALANCE_TICKS 5      // load balancing ticks
+static int balance_ticks[NCPU];  // per-CPU counters, zero-initialized
+
 struct
 {
   struct spinlock lock;
@@ -59,6 +67,38 @@ mycpu(void)
   panic("unknown apicid\n");
 }
 
+// WARNING: these assume ptable.lock is already held.
+static void
+rq_push(struct cpu *c, struct proc *p)
+{
+  struct readyqueue *rq = &c->rq;
+
+  if (rq->count >= NPROC)
+  {
+    panic("rq_push: runqueue full");
+  }
+
+  rq->procs[rq->count++] = p;
+}
+
+static void
+rq_remove(struct cpu *c, struct proc *p)
+{
+  struct readyqueue *rq = &c->rq;
+  int i;
+
+  for (i = 0; i < rq->count; i++)
+  {
+    if (rq->procs[i] == p)
+    {
+      rq->procs[i] = rq->procs[rq->count - 1];
+      rq->count--;
+      return;
+    }
+  }
+  // panic("rq_remove: proc not found in runqueue");
+}
+
 // Disable interrupts so that we are not rescheduled
 // while reading proc from the cpu structure
 struct proc *
@@ -72,6 +112,134 @@ myproc(void)
   popcli();
   return p;
 }
+
+
+
+
+
+static int
+find_least_loaded_ecore(void)
+{
+  int best_core = 0;
+  int best_load = cpus[0].rq.count;
+
+  for (int i = 1; i < ncpu; i++) {
+    if (i % 2 != 0)
+      continue;
+
+    if (cpus[i].rq.count< best_load) {
+      best_core = i;
+      best_load = cpus[i].rq.count;
+    }
+  }
+
+
+  return best_core;
+}
+
+static int
+find_least_loaded_pcore(void)
+{
+  int best_core = -1;
+  int best_load = 0;
+
+  for (int i = 0; i < ncpu; i++) {
+    if (i % 2 == 0)
+      continue;
+
+    int load = cpus[i].rq.count;
+
+    if (best_core < 0 || load < best_load) {
+      best_core = i;
+      best_load = load;
+    }
+  }
+
+  return best_core;   
+}
+
+
+static int
+ecore_is_overloaded(int e_core, int p_core)
+{
+  if (p_core < 0) return 0;
+
+  int E_load = cpus[e_core].rq.count;
+  int P_load = cpus[p_core].rq.count;
+
+  return (E_load >= P_load + 3);
+}
+
+static struct proc*
+select_ecore_proc(int e_core)
+{
+  struct readyqueue *rq = &cpus[e_core].rq;
+
+  for (int i = 0; i < rq->count; i++) {
+    struct proc *p = rq->procs[i];
+
+    if (p->pid == 1)        
+      continue;
+    if (strncmp(p->name, "sh",2) == 0)
+      continue;
+
+    return p;  
+  }
+
+  return 0; 
+}
+
+
+// Called from timer interrupt on every CPU with its cpu_id.
+void
+load_balance_on_timer(int cpu_id)
+{
+  if (cpu_id % 2 != 0)
+    return;
+
+  balance_ticks[cpu_id]++;
+  if (balance_ticks[cpu_id] < BALANCE_TICKS)
+    return;         
+
+  balance_ticks[cpu_id] = 0;   
+
+  acquire(&ptable.lock);
+
+  int p_core = find_least_loaded_pcore();
+  if (!ecore_is_overloaded(cpu_id, p_core)) {
+    release(&ptable.lock);
+    return;
+  }
+
+  struct proc *proc_to_move = select_ecore_proc(cpu_id);
+  if (proc_to_move == 0) {
+    // nothing we can push
+    release(&ptable.lock);
+    return;
+  }
+
+  rq_remove(&cpus[cpu_id], proc_to_move);
+
+  proc_to_move->home_core = p_core;
+
+  rq_push(&cpus[p_core], proc_to_move);
+
+#ifdef BALANCE_DEBUG
+  cprintf("BALANCE: moved pid %d from E%d -to P%d (new Eload=%d, new Pload=%d)\n",
+          proc_to_move->pid,
+          cpu_id, p_core,
+          cpus[cpu_id].rq.count,
+          cpus[p_core].rq.count);
+#endif
+
+  release(&ptable.lock);
+}
+
+
+
+
+
+
 
 // PAGEBREAK: 32
 //  Look in the process table for an UNUSED proc.
@@ -101,6 +269,13 @@ found:
   p->creation_time = ticks;
 
   p->qticks = 0; // no ticks used yet in its timeslice
+
+  // 4.2: Assign this process a "home" core similiar to round-robin.
+  // p->home_core = next_core;
+  // next_core = (next_core + 1) % ncpu;
+  // 4.4 load balancing: assign to least loaded E-core
+  p->home_core = find_least_loaded_ecore();
+
   release(&ptable.lock);
 
   // Allocate kernel stack.
@@ -161,7 +336,8 @@ void userinit(void)
   acquire(&ptable.lock);
 
   p->state = RUNNABLE;
-  p->priority = PRI_NORMAL; // <-- ADD THIS LINE
+  p->priority = PRI_NORMAL;
+  rq_push(&cpus[p->home_core], p);
   release(&ptable.lock);
 }
 
@@ -230,7 +406,7 @@ int fork(void)
   acquire(&ptable.lock);
 
   np->state = RUNNABLE;
-
+  rq_push(&cpus[np->home_core], np);
   release(&ptable.lock);
 
   return pid;
@@ -340,41 +516,147 @@ int wait(void)
 //   - swtch to start running that process
 //   - eventually that process transfers control
 //       via swtch back to the scheduler.
-//  void
-//  scheduler(void)
-//  {
-//    struct proc *p;
-//    struct cpu *c = mycpu();
-//    c->proc = 0;
 
-//   for(;;){
+// THIS IS THE SCHEDULER PRE MULTI READY QUEUEUES (4.3)
+// void scheduler(void)
+// {
+//   struct cpu *c = mycpu();
+//   c->proc = 0;
+
+//   int id = c - cpus;
+//   c->core_type = (id % 2 == 0) ? CORE_E : CORE_P;
+
+//   static int last[NCPU] = {0};
+
+//   for (;;)
+//   {
 //     // Enable interrupts on this processor.
 //     sti();
 
 //     // Loop over process table looking for process to run.
+//     // To implement round-robin we start from last[id],
+//     // not from the beginning of the table every time.
 //     acquire(&ptable.lock);
-//     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-//       if(p->state != RUNNABLE)
-//         continue;
 
-//       // Switch to chosen process.  It is the process's job
+//     struct proc *p = 0;
+
+//     if (c->core_type == CORE_E)
+//     {
+//       int i;
+//       int start = last[id];
+//       for (i = 0; i < NPROC; i++)
+//       {
+//         int idx = (start + i) % NPROC;
+//         if (ptable.proc[idx].state == RUNNABLE)
+//         {
+//           p = &ptable.proc[idx];
+//           // Next time this CPU will start scanning after this process.
+//           last[id] = (idx + 1) % NPROC;
+//           break;
+//         }
+//       }
+//     }
+//     else
+//     // P cores use FCFS
+//     {
+//       for (int i = 0; i < NPROC; i++)
+//       {
+//         // find the first RUNNABLE process
+//         if (ptable.proc[i].state == RUNNABLE)
+//         {
+//           p = &ptable.proc[i];
+//           break;
+//         }
+//       }
+//       for (int i = 0; i < NPROC; i++)
+//       {
+//         // compare creation_time to implement FCFS among RUNNABLE processes
+//         if (ptable.proc[i].state == RUNNABLE)
+//         {
+//           if (p->creation_time > ptable.proc[i].creation_time)
+//           {
+//             p = &ptable.proc[i];
+//           }
+//         }
+//       }
+//     }
+
+//     if (p)
+//     {
+//       // Switch to chosen process. It is the process's job
 //       // to release ptable.lock and then reacquire it
 //       // before jumping back to us.
 //       c->proc = p;
 //       switchuvm(p);
+//       p->qticks = 0;
 //       p->state = RUNNING;
+//       if (SCHED_DEBUG)
+//       {
+//         cprintf("SCHED: cpu %d core_type %s running pid %d (ct=%d)\n",
+//                 id,
+//                 (c->core_type == CORE_E ? "E" : "P"),
+//                 p->pid,
+//                 p->creation_time);
+//       }
 
-//       swtch(&(c->scheduler), p->context);
+//       swtch(&c->scheduler, p->context);
 //       switchkvm();
 
 //       // Process is done running for now.
 //       // It should have changed its p->state before coming back.
 //       c->proc = 0;
 //     }
-//     release(&ptable.lock);
 
+//     release(&ptable.lock);
 //   }
 // }
+
+static void
+check_runqueue_invariants(void)
+{
+ 
+#if READYQ_DEBUG
+ // every ready process can be in one ready queue only.
+  for (struct proc *p = ptable.proc; p < &ptable.proc[NPROC]; p++)
+  {
+    if (p->state != RUNNABLE)
+      continue;
+
+    int found = 0;
+    for (int cid = 0; cid < ncpu; cid++)
+    {
+      struct readyqueue *rq = &cpus[cid].rq;
+      for (int i = 0; i < rq->count; i++)
+      {
+        if (rq->procs[i] == p)
+        {
+          found++;
+        }
+      }
+    }
+    if (found != 1)
+    {
+      cprintf("PROBLEM: pid %d RUNNABLE but in %d queues\n",
+              p->pid, found);
+    }
+  }
+
+  // Every process in any readyqueue must be RUNNABLE.
+  for (int cid = 0; cid < ncpu; cid++)
+  {
+    struct readyqueue *rq = &cpus[cid].rq;
+    for (int i = 0; i < rq->count; i++)
+    {
+      struct proc *p = rq->procs[i];
+      if (p->state != RUNNABLE)
+      {
+        cprintf("PROBLEM: cpu %d queue has pid %d with state %d\n",
+                cid, p->pid, p->state);
+      }
+    }
+  }
+#endif
+}
 
 void scheduler(void)
 {
@@ -391,70 +673,98 @@ void scheduler(void)
     // Enable interrupts on this processor.
     sti();
 
-    // Loop over process table looking for process to run.
-    // To implement round-robin we start from last[id],
-    // not from the beginning of the table every time.
     acquire(&ptable.lock);
-
+    check_runqueue_invariants();
     struct proc *p = 0;
+    struct readyqueue *rq = &c->rq;
 
-    if (c->core_type == CORE_E)
+    if (rq->count > 0)
     {
-      int i;
-      int start = last[id];
-      for (i = 0; i < NPROC; i++)
+      if (c->core_type == CORE_E)
       {
-        int idx = (start + i) % NPROC;
-        if (ptable.proc[idx].state == RUNNABLE)
+        p = rq->procs[0];
+        rq_remove(c, p);
+      }
+      else
+      {
+
+        struct proc *best = 0;
+
+        for (int i = 0; i < rq->count; i++)
         {
-          p = &ptable.proc[idx];
-          // Next time this CPU will start scanning after this process.
-          last[id] = (idx + 1) % NPROC;
-          break;
+          struct proc *cand = rq->procs[i];
+          if (cand->state != RUNNABLE)
+            continue;
+
+          if (best == 0 || cand->creation_time < best->creation_time)
+            best = cand;
+        }
+
+        if (best)
+        {
+          p = best;
+          rq_remove(c, p);
         }
       }
     }
-    else
-    // P cores use FCFS
-    {
-      for (int i = 0; i < NPROC; i++)
-      {
-        // find the first RUNNABLE process
-        if (ptable.proc[i].state == RUNNABLE)
-        {
-          p = &ptable.proc[i];
-          break;
-        }
-      }
-      for (int i = 0; i < NPROC; i++)
-      {
-        // compare creation_time to implement FCFS among RUNNABLE processes
-        if (ptable.proc[i].state == RUNNABLE)
-        {
-          if (p->creation_time > ptable.proc[i].creation_time)
-          {
-            p = &ptable.proc[i];
-          }
-        }
-      }
-    }
+
+    // If no process found in runqueue, scan entire ptable as fallback
+    // if (p == 0)
+    // {
+      
+      
+    //   if (c->core_type == CORE_E)
+    //   {
+    //     int start = last[id];
+
+    //     for (int i = 0; i < NPROC; i++)
+    //     {
+    //       int idx = (start + i) % NPROC;
+    //       if (ptable.proc[idx].state != RUNNABLE)
+    //         continue;
+    //       if (ptable.proc[idx].home_core != id)
+    //         continue;
+
+    //       p = &ptable.proc[idx];
+    //       last[id] = (idx + 1) % NPROC;
+    //       break;
+    //     }
+    //   }
+    //   else
+    //   {
+    //     // P cores use FCFS among this core's RUNNABLE procs
+    //     struct proc *best = 0;
+
+    //     for (int i = 0; i < NPROC; i++)
+    //     {
+    //       if (ptable.proc[i].state != RUNNABLE)
+    //         continue;
+    //       if (ptable.proc[i].home_core != id)
+    //         continue;
+
+    //       if (best == 0 || ptable.proc[i].creation_time < best->creation_time)
+    //         best = &ptable.proc[i];
+    //     }
+
+    //     p = best;
+    //   }
+    // }
 
     if (p)
     {
-      // Switch to chosen process. It is the process's job
-      // to release ptable.lock and then reacquire it
-      // before jumping back to us.
       c->proc = p;
       switchuvm(p);
       p->qticks = 0;
       p->state = RUNNING;
+
       if (SCHED_DEBUG)
       {
-        cprintf("SCHED: cpu %d core_type %s running pid %d (ct=%d)\n",
+        cprintf("SCHED: cpu %d core_type %s running pid %d (ct=%d, home=%d)\n",
                 id,
                 (c->core_type == CORE_E ? "E" : "P"),
                 p->pid,
-                p->creation_time);
+                p->creation_time,
+                p->home_core);
       }
 
       swtch(&c->scheduler, p->context);
@@ -495,10 +805,17 @@ void sched(void)
 }
 
 // Give up the CPU for one scheduling round.
+
 void yield(void)
 {
+  struct proc *p = myproc();
+
   acquire(&ptable.lock); // DOC: yieldlock
-  myproc()->state = RUNNABLE;
+
+  p->state = RUNNABLE;
+  // put it back into its home core's ready queue
+  rq_push(&cpus[p->home_core], p);
+
   sched();
   release(&ptable.lock);
 }
@@ -573,8 +890,14 @@ wakeup1(void *chan)
   struct proc *p;
 
   for (p = ptable.proc; p < &ptable.proc[NPROC]; p++)
+  {
     if (p->state == SLEEPING && p->chan == chan)
+    {
       p->state = RUNNABLE;
+      // enqueue on its home core's ready queue
+      rq_push(&cpus[p->home_core], p);
+    }
+  }
 }
 
 // Wake up all processes sleeping on chan.
@@ -600,7 +923,10 @@ int kill(int pid)
       p->killed = 1;
       // Wake process from sleep if necessary.
       if (p->state == SLEEPING)
+      {
         p->state = RUNNABLE;
+        rq_push(&cpus[p->home_core], p);
+      }
       release(&ptable.lock);
       return 0;
     }

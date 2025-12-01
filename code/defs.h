@@ -120,6 +120,7 @@ void            userinit(void);
 int             wait(void);
 void            wakeup(void*);
 void            yield(void);
+void            load_balance_on_timer(int);
 
 // swtch.S
 void            swtch(struct context**, struct context*);
@@ -164,6 +165,7 @@ void            idtinit(void);
 extern uint     ticks;
 void            tvinit(void);
 extern struct spinlock tickslock;
+
 
 // uart.c
 void            uartinit(void);
