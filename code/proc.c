@@ -17,6 +17,11 @@ extern uint ticks;
 extern int ncpu;
 static int next_core = 0; // next CPU index to assign new procs
 
+struct spinlock eval_lock;
+int measurement_active = 0;
+uint start_tick = 0;
+int finished_processes = 0; // Variables for algorithm scheduling test 
+
 
 #define BALANCE_TICKS 5      // load balancing ticks
 static int balance_ticks[NCPU];  // per-CPU counters, zero-initialized
@@ -440,6 +445,11 @@ void exit(void)
   curproc->cwd = 0;
 
   acquire(&ptable.lock);
+
+  if (measurement_active) {
+    finished_processes++;
+  } // For testing we need to know how many tasks have finished so once they are done we increase the number by one 
+    //ONLY when we are measuring using measurement active.
 
   // Parent might be sleeping in wait().
   wakeup1(curproc->parent);
@@ -1073,4 +1083,91 @@ int sys_set_priority_syscall(void)
     return 0;
   else
     return -1;
+}
+
+
+// We will add functions fot the three systems calls, one for start measuring, one to stop and one to print its info
+int 
+start_measuring_impl(void) 
+// In this function we just need to set the variables to a start mode so setting them to 
+//their start values, finished process should be zero and start tick is required for measuring the time
+// We also set measuring to active to we know we actually have started a test and can print it
+{
+  acquire(&ptable.lock);
+  measurement_active = 1;
+  finished_processes = 0;
+  start_tick = ticks;
+  release(&ptable.lock);
+  return 0;
+}
+
+// Next we add stop measuring 
+int 
+stop_measuring_impl(void) 
+{
+  acquire(&ptable.lock);
+  if (!measurement_active) {
+      release(&ptable.lock);
+      return -1;
+  }
+  
+  uint end_tick = ticks;
+  int count = finished_processes;
+  measurement_active = 0; // Stop by setting this variable to zero meaning false and inactive
+  release(&ptable.lock);
+
+  uint duration = end_tick - start_tick;
+  if (duration == 0) duration = 1;
+
+  int throughput = (count * 1000) / duration; 
+
+  cprintf("\n[EVALUATION RESULT]\n");
+  cprintf("Finished Processes: %d\n", count);
+  cprintf("Total Time: %d ticks\n", duration);
+  cprintf("Throughput: %d.%d processes/tick\n", throughput / 1000, throughput % 1000);
+  cprintf("---------------------\n");
+
+  return 0;
+}
+
+// And at last we need to print info of the measurement
+int 
+print_info_impl(void) 
+{
+  struct proc *p;
+  int core;
+  int home;
+  int creation;
+  int pid;
+  char *name;
+
+  // 1. DISABLE INTERRUPTS to safely read CPU and Process data
+  pushcli(); 
+  
+  if(myproc() == 0) {
+      // Safety check: If called from scheduler when no process is running
+      popcli();
+      return -1; 
+  }
+
+  p = myproc();
+  core = cpuid(); // Now safe because interrupts are off
+  
+  // Copy data to local variables so we can print safely later
+  pid = p->pid;
+  name = p->name;
+  home = p->home_core;
+  creation = p->creation_time;
+  
+  popcli(); // 2. RE-ENABLE INTERRUPTS
+  
+  // 3. Logic
+  char *algo = (core % 2 == 0) ? "Round Robin" : "FCFS (Modified)";
+
+  // 4. Print (It is safer to print with interrupts enabled, 
+  //    so we do this after popcli)
+  cprintf("[INFO] PID: %d | Name: %s | Core: %d (%s) | Home: %d | Created: %d\n",
+          pid, name, core, algo, home, creation);
+
+  return 0;
 }

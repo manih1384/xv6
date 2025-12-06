@@ -28,6 +28,9 @@ int make_duplicate(const char *src_file);
 int show_process_family(int); 
 int grep_syscall(const char*, const char*, char*, int);
 int set_priority_syscall(int pid, int priority);
+int start_measuring(void);
+int stop_measuring(void);
+int print_info(void);
 
 // ulib.c
 int stat(const char*, struct stat*);

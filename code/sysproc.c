@@ -107,6 +107,14 @@ int sys_simple_arithmetic(void)
   return result;
 }
 
+int sys_start_measuring(void) {
+  return start_measuring_impl();
+}
 
+int sys_stop_measuring(void) {
+  return stop_measuring_impl();
+}
 
-
+int sys_print_info(void) {
+  return print_info_impl();
+}

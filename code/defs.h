@@ -121,6 +121,9 @@ int             wait(void);
 void            wakeup(void*);
 void            yield(void);
 void            load_balance_on_timer(int);
+int             start_measuring_impl(void);
+int             stop_measuring_impl(void);
+int             print_info_impl(void);
 
 // swtch.S
 void            swtch(struct context**, struct context*);

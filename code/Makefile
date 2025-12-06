@@ -190,6 +190,7 @@ UPROGS=\
 	_priority_test\
 	_RRtest\
 	_FCFStest\
+	_schedtest\
 
 fs.img: mkfs README $(UPROGS)
 	./mkfs fs.img README $(UPROGS)
@@ -263,7 +264,8 @@ EXTRA=\
 	.gdbinit.tmpl gdbutil\
 	showfamilytest.c\
 	grep_test.c\
-	priority_test.c\ 
+	priority_test.c\
+	schedtest.c\
 
 dist:
 	rm -rf dist

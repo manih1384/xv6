@@ -33,7 +33,9 @@ SYSCALL(make_duplicate)
 SYSCALL(show_process_family)
 SYSCALL(grep_syscall)
 SYSCALL(set_priority_syscall) 
-
+SYSCALL(start_measuring)
+SYSCALL(stop_measuring)
+SYSCALL(print_info)
 
 
 
