@@ -6,6 +6,7 @@
 #include "x86.h"
 #include "proc.h"
 #include "spinlock.h"
+#include "sleeplock.h"  
 
 #define SCHED_DEBUG 0
 #define READYQ_DEBUG 0

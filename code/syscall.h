@@ -28,3 +28,5 @@
 #define SYS_start_measuring  27
 #define SYS_stop_measuring   28
 #define SYS_print_info       29
+#define SYS_testlock_acquire  30
+#define SYS_testlock_release  31

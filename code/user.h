@@ -31,6 +31,9 @@ int set_priority_syscall(int pid, int priority);
 int start_measuring(void);
 int stop_measuring(void);
 int print_info(void);
+int testlock_acquire(void);
+int testlock_release(void);
+
 
 // ulib.c
 int stat(const char*, struct stat*);

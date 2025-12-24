@@ -183,14 +183,15 @@ UPROGS=\
 	_zombie\
 	_find_sum\
 	_pid\
-	_arithmatic\
-	_make_duplicate\
-	_showfamilytest\
-	_grep_test\
-	_priority_test\
 	_RRtest\
 	_FCFStest\
 	_schedtest\
+	_testsleeplock\
+# 	_arithmatic\
+# 	_make_duplicate\
+# 	_showfamilytest\
+# 	_grep_test\
+# 	_priority_test\
 
 fs.img: mkfs README $(UPROGS)
 	./mkfs fs.img README $(UPROGS)

@@ -1,3 +1,6 @@
+
+#include "sleeplock.h"
+
 struct buf {
   int flags;
   uint dev;

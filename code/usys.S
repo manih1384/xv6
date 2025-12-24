@@ -36,6 +36,9 @@ SYSCALL(set_priority_syscall)
 SYSCALL(start_measuring)
 SYSCALL(stop_measuring)
 SYSCALL(print_info)
+SYSCALL(testlock_acquire)
+SYSCALL(testlock_release)
+
 
 
 

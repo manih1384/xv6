@@ -6,6 +6,8 @@
 #include "memlayout.h"
 #include "mmu.h"
 #include "proc.h"
+#include "sleeplock.h"
+
 
 int
 sys_fork(void)
@@ -117,4 +119,78 @@ int sys_stop_measuring(void) {
 
 int sys_print_info(void) {
   return print_info_impl();
+}
+
+
+// static struct sleeplock testlock;
+// static int testlock_initialized = 0;
+
+// int
+// sys_testsleeplock(void)
+// {
+//   int pid;
+
+//   if(!testlock_initialized){
+//     initsleeplock(&testlock, "testlock");
+//     testlock_initialized = 1;
+//   }
+
+//   acquiresleep(&testlock);
+//   cprintf("testsleeplock: parenddddt acquired lock (pid=%d)\n", myproc()->pid);
+
+//   pid = sys_fork();
+
+
+//   if(pid < 0){
+//     releasesleep(&testlock);
+//     return -1;
+//   }
+//   if(pid == 0){
+//     cprintf("testsleeplock: child attempting to release lock (pid=%d)\n", myproc()->pid);
+     
+//     // This SHOULD panic:
+//     releasesleep(&testlock);
+
+//     // If no panic, force failure visibility:
+//     cprintf("testsleeplock: ERROR - child released without panic\n");
+//     exit();     // never return to user main
+//   }
+
+//   // Parent: wait so output is clean
+//   wait();
+
+//   // If the child panicked, we never reach here.
+//   releasesleep(&testlock);
+//   return 0;
+// }
+
+
+static struct sleeplock testlock;
+static int testlock_initialized = 0;
+
+static void
+init_testlock(void)
+{
+  if(!testlock_initialized){
+    initsleeplock(&testlock, "testlock");
+    testlock_initialized = 1;
+  }
+}
+
+int
+sys_testlock_acquire(void)
+{
+  init_testlock();
+  acquiresleep(&testlock);
+  cprintf("testlock: acquired by pid=%d\n", myproc()->pid);
+  return 0;
+}
+
+int
+sys_testlock_release(void)
+{
+  init_testlock();
+  cprintf("testlock: release attempt by pid=%d\n", myproc()->pid);
+  releasesleep(&testlock);   // CHILD SHOULD PANIC HERE
+  return 0;
 }
