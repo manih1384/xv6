@@ -33,6 +33,10 @@ int stop_measuring(void);
 int print_info(void);
 int testlock_acquire(void);
 int testlock_release(void);
+int rwlock_acquire_read(void);
+int rwlock_release_read(void);
+int rwlock_acquire_write(void);
+int rwlock_release_write(void);
 
 
 // ulib.c

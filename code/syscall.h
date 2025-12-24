@@ -30,3 +30,7 @@
 #define SYS_print_info       29
 #define SYS_testlock_acquire  30
 #define SYS_testlock_release  31
+#define SYS_rwlock_acquire_read   32
+#define SYS_rwlock_release_read   33
+#define SYS_rwlock_acquire_write  34
+#define SYS_rwlock_release_write  35

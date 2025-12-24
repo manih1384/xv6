@@ -6,7 +6,7 @@
 #include "x86.h"
 #include "proc.h"
 #include "spinlock.h"
-#include "sleeplock.h"  
+#include "sleeplock.h"
 
 #define SCHED_DEBUG 0
 #define READYQ_DEBUG 0
@@ -21,11 +21,10 @@ static int next_core = 0; // next CPU index to assign new procs
 struct spinlock eval_lock;
 int measurement_active = 0;
 uint start_tick = 0;
-int finished_processes = 0; // Variables for algorithm scheduling test 
+int finished_processes = 0; // Variables for algorithm scheduling test
 
-
-#define BALANCE_TICKS 5      // load balancing ticks
-static int balance_ticks[NCPU];  // per-CPU counters, zero-initialized
+#define BALANCE_TICKS 5         // load balancing ticks
+static int balance_ticks[NCPU]; // per-CPU counters, zero-initialized
 
 struct
 {
@@ -119,26 +118,23 @@ myproc(void)
   return p;
 }
 
-
-
-
-
 static int
 find_least_loaded_ecore(void)
 {
   int best_core = 0;
   int best_load = cpus[0].rq.count;
 
-  for (int i = 1; i < ncpu; i++) {
+  for (int i = 1; i < ncpu; i++)
+  {
     if (i % 2 != 0)
       continue;
 
-    if (cpus[i].rq.count< best_load) {
+    if (cpus[i].rq.count < best_load)
+    {
       best_core = i;
       best_load = cpus[i].rq.count;
     }
   }
-
 
   return best_core;
 }
@@ -149,26 +145,28 @@ find_least_loaded_pcore(void)
   int best_core = -1;
   int best_load = 0;
 
-  for (int i = 0; i < ncpu; i++) {
+  for (int i = 0; i < ncpu; i++)
+  {
     if (i % 2 == 0)
       continue;
 
     int load = cpus[i].rq.count;
 
-    if (best_core < 0 || load < best_load) {
+    if (best_core < 0 || load < best_load)
+    {
       best_core = i;
       best_load = load;
     }
   }
 
-  return best_core;   
+  return best_core;
 }
-
 
 static int
 ecore_is_overloaded(int e_core, int p_core)
 {
-  if (p_core < 0) return 0;
+  if (p_core < 0)
+    return 0;
 
   int E_load = cpus[e_core].rq.count;
   int P_load = cpus[p_core].rq.count;
@@ -176,49 +174,50 @@ ecore_is_overloaded(int e_core, int p_core)
   return (E_load >= P_load + 3);
 }
 
-static struct proc*
+static struct proc *
 select_ecore_proc(int e_core)
 {
   struct readyqueue *rq = &cpus[e_core].rq;
 
-  for (int i = 0; i < rq->count; i++) {
+  for (int i = 0; i < rq->count; i++)
+  {
     struct proc *p = rq->procs[i];
 
-    if (p->pid == 1)        
+    if (p->pid == 1)
       continue;
-    if (strncmp(p->name, "sh",2) == 0)
+    if (strncmp(p->name, "sh", 2) == 0)
       continue;
 
-    return p;  
+    return p;
   }
 
-  return 0; 
+  return 0;
 }
 
-
 // Called from timer interrupt on every CPU with its cpu_id.
-void
-load_balance_on_timer(int cpu_id)
+void load_balance_on_timer(int cpu_id)
 {
   if (cpu_id % 2 != 0)
     return;
 
   balance_ticks[cpu_id]++;
   if (balance_ticks[cpu_id] < BALANCE_TICKS)
-    return;         
+    return;
 
-  balance_ticks[cpu_id] = 0;   
+  balance_ticks[cpu_id] = 0;
 
   acquire(&ptable.lock);
 
   int p_core = find_least_loaded_pcore();
-  if (!ecore_is_overloaded(cpu_id, p_core)) {
+  if (!ecore_is_overloaded(cpu_id, p_core))
+  {
     release(&ptable.lock);
     return;
   }
 
   struct proc *proc_to_move = select_ecore_proc(cpu_id);
-  if (proc_to_move == 0) {
+  if (proc_to_move == 0)
+  {
     // nothing we can push
     release(&ptable.lock);
     return;
@@ -230,22 +229,17 @@ load_balance_on_timer(int cpu_id)
 
   rq_push(&cpus[p_core], proc_to_move);
 
-#ifdef BALANCE_DEBUG
-  cprintf("BALANCE: moved pid %d from E%d -to P%d (new Eload=%d, new Pload=%d)\n",
-          proc_to_move->pid,
-          cpu_id, p_core,
-          cpus[cpu_id].rq.count,
-          cpus[p_core].rq.count);
-#endif
+  if (BALANCE_DEBUG)
+  {
+    cprintf("BALANCE: moved pid %d from E%d to P%d (new Eload=%d, new Pload=%d)\n",
+            proc_to_move->pid,
+            cpu_id, p_core,
+            cpus[cpu_id].rq.count,
+            cpus[p_core].rq.count);
+  }
 
   release(&ptable.lock);
 }
-
-
-
-
-
-
 
 // PAGEBREAK: 32
 //  Look in the process table for an UNUSED proc.
@@ -447,10 +441,11 @@ void exit(void)
 
   acquire(&ptable.lock);
 
-  if (measurement_active) {
+  if (measurement_active)
+  {
     finished_processes++;
-  } // For testing we need to know how many tasks have finished so once they are done we increase the number by one 
-    //ONLY when we are measuring using measurement active.
+  } // For testing we need to know how many tasks have finished so once they are done we increase the number by one
+    // ONLY when we are measuring using measurement active.
 
   // Parent might be sleeping in wait().
   wakeup1(curproc->parent);
@@ -625,9 +620,9 @@ int wait(void)
 static void
 check_runqueue_invariants(void)
 {
- 
+
 #if READYQ_DEBUG
- // every ready process can be in one ready queue only.
+  // every ready process can be in one ready queue only.
   for (struct proc *p = ptable.proc; p < &ptable.proc[NPROC]; p++)
   {
     if (p->state != RUNNABLE)
@@ -722,8 +717,7 @@ void scheduler(void)
     // If no process found in runqueue, scan entire ptable as fallback
     // if (p == 0)
     // {
-      
-      
+
     //   if (c->core_type == CORE_E)
     //   {
     //     int start = last[id];
@@ -1086,12 +1080,10 @@ int sys_set_priority_syscall(void)
     return -1;
 }
 
-
 // We will add functions fot the three systems calls, one for start measuring, one to stop and one to print its info
-int 
-start_measuring_impl(void) 
-// In this function we just need to set the variables to a start mode so setting them to 
-//their start values, finished process should be zero and start tick is required for measuring the time
+int start_measuring_impl(void)
+// In this function we just need to set the variables to a start mode so setting them to
+// their start values, finished process should be zero and start tick is required for measuring the time
 // We also set measuring to active to we know we actually have started a test and can print it
 {
   acquire(&ptable.lock);
@@ -1102,25 +1094,26 @@ start_measuring_impl(void)
   return 0;
 }
 
-// Next we add stop measuring 
-int 
-stop_measuring_impl(void) 
+// Next we add stop measuring
+int stop_measuring_impl(void)
 {
   acquire(&ptable.lock);
-  if (!measurement_active) {
-      release(&ptable.lock);
-      return -1;
+  if (!measurement_active)
+  {
+    release(&ptable.lock);
+    return -1;
   }
-  
+
   uint end_tick = ticks;
   int count = finished_processes;
   measurement_active = 0; // Stop by setting this variable to zero meaning false and inactive
   release(&ptable.lock);
 
   uint duration = end_tick - start_tick;
-  if (duration == 0) duration = 1;
+  if (duration == 0)
+    duration = 1;
 
-  int throughput = (count * 1000) / duration; 
+  int throughput = (count * 1000) / duration;
 
   cprintf("\n[EVALUATION RESULT]\n");
   cprintf("Finished Processes: %d\n", count);
@@ -1132,8 +1125,7 @@ stop_measuring_impl(void)
 }
 
 // And at last we need to print info of the measurement
-int 
-print_info_impl(void) 
+int print_info_impl(void)
 {
   struct proc *p;
   int core;
@@ -1143,29 +1135,30 @@ print_info_impl(void)
   char *name;
 
   // 1. DISABLE INTERRUPTS to safely read CPU and Process data
-  pushcli(); 
-  
-  if(myproc() == 0) {
-      // Safety check: If called from scheduler when no process is running
-      popcli();
-      return -1; 
+  pushcli();
+
+  if (myproc() == 0)
+  {
+    // Safety check: If called from scheduler when no process is running
+    popcli();
+    return -1;
   }
 
   p = myproc();
   core = cpuid(); // Now safe because interrupts are off
-  
+
   // Copy data to local variables so we can print safely later
   pid = p->pid;
   name = p->name;
   home = p->home_core;
   creation = p->creation_time;
-  
+
   popcli(); // 2. RE-ENABLE INTERRUPTS
-  
+
   // 3. Logic
   char *algo = (core % 2 == 0) ? "Round Robin" : "FCFS (Modified)";
 
-  // 4. Print (It is safer to print with interrupts enabled, 
+  // 4. Print (It is safer to print with interrupts enabled,
   //    so we do this after popcli)
   cprintf("[INFO] PID: %d | Name: %s | Core: %d (%s) | Home: %d | Created: %d\n",
           pid, name, core, algo, home, creation);

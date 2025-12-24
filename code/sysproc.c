@@ -7,7 +7,7 @@
 #include "mmu.h"
 #include "proc.h"
 #include "sleeplock.h"
-
+#include "rwlock.h"
 
 int
 sys_fork(void)
@@ -192,5 +192,49 @@ sys_testlock_release(void)
   init_testlock();
   cprintf("testlock: release attempt by pid=%d\n", myproc()->pid);
   releasesleep(&testlock);   // CHILD SHOULD PANIC HERE
+  return 0;
+}
+
+
+
+static struct rwlock testrw;
+static int testrw_initialized = 0;
+
+static void
+init_rwlock_if_needed(void)
+{
+  if(!testrw_initialized){
+    rwlock_init(&testrw, "testrw");
+    testrw_initialized = 1;
+  }
+}
+
+int
+sys_rwlock_acquire_read(void)
+{
+  init_rwlock_if_needed();
+  rwlock_acquire_read(&testrw);
+  return 0;
+}
+
+int
+sys_rwlock_release_read(void)
+{
+  rwlock_release_read(&testrw);
+  return 0;
+}
+
+int
+sys_rwlock_acquire_write(void)
+{
+  init_rwlock_if_needed();
+  rwlock_acquire_write(&testrw);
+  return 0;
+}
+
+int
+sys_rwlock_release_write(void)
+{
+  rwlock_release_write(&testrw);
   return 0;
 }

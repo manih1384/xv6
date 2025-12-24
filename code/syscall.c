@@ -110,6 +110,10 @@ extern int sys_print_info(void);
 
 extern int sys_testlock_acquire(void);
 extern int sys_testlock_release(void);
+extern int sys_rwlock_acquire_read(void);
+extern int sys_rwlock_release_read(void);
+extern int sys_rwlock_acquire_write(void);
+extern int sys_rwlock_release_write(void);
 
 static int (*syscalls[])(void) = {
     [SYS_fork] sys_fork,
@@ -143,6 +147,10 @@ static int (*syscalls[])(void) = {
     [SYS_print_info] sys_print_info,
     [SYS_testlock_acquire] sys_testlock_acquire,
     [SYS_testlock_release] sys_testlock_release,
+    [SYS_rwlock_acquire_read] sys_rwlock_acquire_read,
+    [SYS_rwlock_release_read] sys_rwlock_release_read,
+    [SYS_rwlock_acquire_write] sys_rwlock_acquire_write,
+    [SYS_rwlock_release_write] sys_rwlock_release_write,
 
 };
 
