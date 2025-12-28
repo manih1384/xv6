@@ -37,6 +37,7 @@ int rwlock_acquire_read(void);
 int rwlock_release_read(void);
 int rwlock_acquire_write(void);
 int rwlock_release_write(void);
+int getlockstat(uint64 *score);
 
 
 // ulib.c

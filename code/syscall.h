@@ -34,3 +34,4 @@
 #define SYS_rwlock_release_read   33
 #define SYS_rwlock_acquire_write  34
 #define SYS_rwlock_release_write  35
+#define SYS_getlockstat 36

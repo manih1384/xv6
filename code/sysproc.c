@@ -238,3 +238,16 @@ sys_rwlock_release_write(void)
   rwlock_release_write(&testrw);
   return 0;
 }
+
+int
+sys_getlockstat(void)
+{
+  uint64 *score;
+
+  // Retrieve argument (pointer)
+  if(argptr(0, (void*)&score, sizeof(uint64)*NCPU) < 0)
+    return -1;
+
+  // Call the helper in proc.c
+  return get_ptable_stats(score);
+}

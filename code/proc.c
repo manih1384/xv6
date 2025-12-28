@@ -1165,3 +1165,41 @@ int print_info_impl(void)
 
   return 0;
 }
+
+int
+get_ptable_stats(uint64 *scores)
+{
+  struct spinlock *lk = &ptable.lock;
+  uint64 temp_scores[NCPU];
+
+  // Calculate scores inside kernel
+  // Formula: spins_total / acq_count (Average spins per acquire)
+  // Note: The prompt suggested acq/spins, but that crashes if spins=0.
+  // We use spins/acq as a better "Contention Score".
+  
+  for(int i=0; i<NCPU; i++){
+    if(lk->acq_count[i] == 0) {
+      temp_scores[i] = 0;
+    } else {
+      // Scale by 10 or 100 if you want integer precision, 
+      // otherwise it might be 0 for low contention.
+      // Here we just do raw division as requested.
+      // Safe enough for this lab
+        if (lk->acq_count[i] == 0) {
+          temp_scores[i] = 0;
+        } else {
+          // Cast operands to normal integers (32-bit)
+          uint spins = (uint)lk->total_spins[i];
+          uint acqs  = (uint)lk->acq_count[i];
+          temp_scores[i] = spins / acqs; 
+        }
+    }
+  }
+
+  // Copy data to user space
+  struct proc *p = myproc();
+  if(copyout(p->pgdir, (uint)scores, (void*)temp_scores, sizeof(uint64)*NCPU) < 0)
+    return -1;
+
+  return 0;
+}

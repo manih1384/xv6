@@ -42,6 +42,7 @@ SYSCALL(rwlock_acquire_read)
 SYSCALL(rwlock_release_read)
 SYSCALL(rwlock_acquire_write)
 SYSCALL(rwlock_release_write)
+SYSCALL(getlockstat)
 
 
 
