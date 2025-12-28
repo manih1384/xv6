@@ -20,6 +20,9 @@ initlock(struct spinlock *lk, char *name)
     lk->acq_count[i] = 0;
     lk->total_spins[i] = 0;
   }
+  // for (int i = 0; i < NCPU; i++) {
+  //   cprintf("\n--------\nSet acq_count to:%d, and total_spins to:%d, For CPU:%d\n--------\n",lk->acq_count[i], lk->total_spins[i], i);
+  // }
 }
 
 // Acquire the lock.
