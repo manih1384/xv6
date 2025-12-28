@@ -103,7 +103,7 @@ extern int sys_simple_arithmetic(void);
 extern int sys_make_duplicate(void);
 extern int sys_show_process_family(void);
 extern int sys_grep_syscall(void);
-extern int sys_set_priority_syscall(void);
+extern int sys_set_priority(void);
 extern int sys_start_measuring(void);
 extern int sys_stop_measuring(void);
 extern int sys_print_info(void);
@@ -116,7 +116,8 @@ extern int sys_rwlock_acquire_write(void);
 extern int sys_rwlock_release_write(void);
 
 extern int sys_getlockstat(void);
-
+extern int sys_plock_acquire(void); 
+extern int sys_plock_release(void); 
 static int (*syscalls[])(void) = {
     [SYS_fork] sys_fork,
     [SYS_exit] sys_exit,
@@ -143,7 +144,7 @@ static int (*syscalls[])(void) = {
     [SYS_make_duplicate] sys_make_duplicate,
     [SYS_show_process_family] sys_show_process_family,
     [SYS_grep_syscall] sys_grep_syscall,
-    [SYS_set_priority_syscall] sys_set_priority_syscall,
+    [SYS_set_priority] sys_set_priority,
     [SYS_start_measuring] sys_start_measuring,
     [SYS_stop_measuring] sys_stop_measuring,
     [SYS_print_info] sys_print_info,
@@ -154,7 +155,8 @@ static int (*syscalls[])(void) = {
     [SYS_rwlock_acquire_write] sys_rwlock_acquire_write,
     [SYS_rwlock_release_write] sys_rwlock_release_write,
     [SYS_getlockstat]   sys_getlockstat,
-
+    [SYS_plock_acquire] sys_plock_acquire,
+    [SYS_plock_release] sys_plock_release
 };
 
 void syscall(void)

@@ -7,7 +7,7 @@
 #include "proc.h"
 #include "spinlock.h"
 #include "sleeplock.h"
-
+#include "plock.h"
 #define SCHED_DEBUG 0
 #define READYQ_DEBUG 0
 #define BALANCE_DEBUG 0
@@ -25,7 +25,8 @@ int finished_processes = 0; // Variables for algorithm scheduling test
 
 #define BALANCE_TICKS 5         // load balancing ticks
 static int balance_ticks[NCPU]; // per-CPU counters, zero-initialized
-
+extern struct plock p_lock;
+void plock_init(struct plock*);
 struct
 {
   struct spinlock lock;
@@ -309,7 +310,7 @@ void userinit(void)
 {
   struct proc *p;
   extern char _binary_initcode_start[], _binary_initcode_size[];
-
+  plock_init(&p_lock);
   p = allocproc();
 
   initproc = p;
@@ -1050,35 +1051,23 @@ int sys_show_process_family(void)
   return 0;
 }
 
-int sys_set_priority_syscall(void)
+
+int
+sys_set_priority(void)
 {
-  int pid, priority;
-  struct proc *p;
-  int found = 0;
+  int priority;
 
-  if (argint(0, &pid) < 0 || argint(1, &priority) < 0)
+  if(argint(0, &priority) < 0)
     return -1;
 
-  if (priority < PRI_HIGH || priority > PRI_LOW)
+  if(priority < 0 || priority > 2)
     return -1;
 
-  acquire(&ptable.lock);
-  for (p = ptable.proc; p < &ptable.proc[NPROC]; p++)
-  {
-    if (p->pid == pid)
-    {
-      p->priority = priority;
-      found = 1;
-      break;
-    }
-  }
-  release(&ptable.lock);
-
-  if (found)
-    return 0;
-  else
-    return -1;
+  myproc()->priority = priority;
+  
+  return 0;
 }
+
 
 // We will add functions fot the three systems calls, one for start measuring, one to stop and one to print its info
 int start_measuring_impl(void)

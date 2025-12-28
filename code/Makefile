@@ -28,6 +28,7 @@ OBJS = \
 	vectors.o\
 	vm.o\
 	rwlock.o\
+	plock.o\
 
 # Cross-compiling (e.g., on Mac OS X)
 # TOOLPREFIX = i386-jos-elf
@@ -190,6 +191,7 @@ UPROGS=\
 	_testsleeplock\
 	_testrwlock\
 	_lockstat_test\
+	_test_plock\
 # 	_arithmatic\
 # 	_make_duplicate\
 # 	_showfamilytest\
@@ -271,6 +273,7 @@ EXTRA=\
 	priority_test.c\
 	schedtest.c\
 	lockstat_test.c\
+	test_plock.c\
 
 dist:
 	rm -rf dist
