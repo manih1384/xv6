@@ -27,7 +27,7 @@ int simple_arithmetic_syscall(int a, int b);
 int make_duplicate(const char *src_file);
 int show_process_family(int); 
 int grep_syscall(const char*, const char*, char*, int);
-int set_priority_syscall(int pid, int priority);
+int set_priority(int priority);
 int start_measuring(void);
 int stop_measuring(void);
 int print_info(void);
@@ -37,6 +37,9 @@ int rwlock_acquire_read(void);
 int rwlock_release_read(void);
 int rwlock_acquire_write(void);
 int rwlock_release_write(void);
+int getlockstat(uint64 *score);
+int plock_acquire(void);
+int plock_release(void);
 
 
 // ulib.c

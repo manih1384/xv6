@@ -29,6 +29,7 @@ OBJS = \
 	vm.o\
 	rwlock.o\
 	new_ptable.o \
+	plock.o\
 
 # Cross-compiling (e.g., on Mac OS X)
 # TOOLPREFIX = i386-jos-elf
@@ -190,6 +191,8 @@ UPROGS=\
 	_schedtest\
 	_testsleeplock\
 	_testrwlock\
+	_lockstat_test\
+	_test_plock\
 # 	_arithmatic\
 # 	_make_duplicate\
 # 	_showfamilytest\
@@ -231,7 +234,7 @@ QEMUGDB = $(shell if $(QEMU) -help | grep -q '^-gdb'; \
 	then echo "-gdb tcp::$(GDBPORT)"; \
 	else echo "-s -p $(GDBPORT)"; fi)
 ifndef CPUS
-CPUS := 2
+CPUS := 4
 endif
 QEMUOPTS = -drive file=fs.img,index=1,media=disk,format=raw -drive file=xv6.img,index=0,media=disk,format=raw -smp cpus=$(CPUS),cores=1,threads=1,sockets=$(CPUS) -m 512 $(QEMUEXTRA)
 qemu: fs.img xv6.img
@@ -270,6 +273,8 @@ EXTRA=\
 	grep_test.c\
 	priority_test.c\
 	schedtest.c\
+	lockstat_test.c\
+	test_plock.c\
 
 dist:
 	rm -rf dist

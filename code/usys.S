@@ -32,7 +32,7 @@ SYSCALL(uptime)
 SYSCALL(make_duplicate)
 SYSCALL(show_process_family)
 SYSCALL(grep_syscall)
-SYSCALL(set_priority_syscall) 
+SYSCALL(set_priority) 
 SYSCALL(start_measuring)
 SYSCALL(stop_measuring)
 SYSCALL(print_info)
@@ -42,7 +42,9 @@ SYSCALL(rwlock_acquire_read)
 SYSCALL(rwlock_release_read)
 SYSCALL(rwlock_acquire_write)
 SYSCALL(rwlock_release_write)
-
+SYSCALL(getlockstat)
+SYSCALL(plock_acquire) 
+SYSCALL(plock_release) 
 
 
 

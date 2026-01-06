@@ -8,7 +8,7 @@
 #include "proc.h"
 #include "sleeplock.h"
 #include "rwlock.h"
-
+#include "plock.h"
 int
 sys_fork(void)
 {
@@ -236,5 +236,41 @@ int
 sys_rwlock_release_write(void)
 {
   rwlock_release_write(&testrw);
+  return 0;
+}
+
+int
+sys_getlockstat(void)
+{
+  uint64 *score;
+
+  // Retrieve argument (pointer)
+  if(argptr(0, (void*)&score, sizeof(uint64)*NCPU) < 0)
+    return -1;
+
+  // Call the helper in proc.c
+  return get_ptable_stats(score);
+}
+
+
+extern struct plock p_lock;
+void plock_acquire(struct plock*, int);
+void plock_release(struct plock*);
+
+int
+sys_plock_acquire(void)
+{
+  int priority;
+  if(argint(0, &priority) < 0)
+    return -1;
+
+  plock_acquire(&p_lock, priority);
+  return 0;
+}
+
+int
+sys_plock_release(void)
+{
+  plock_release(&p_lock);
   return 0;
 }

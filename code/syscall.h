@@ -24,7 +24,7 @@
 #define SYS_make_duplicate 23
 #define SYS_show_process_family 24
 #define SYS_grep_syscall 25
-#define SYS_set_priority_syscall 26
+#define SYS_set_priority 26
 #define SYS_start_measuring  27
 #define SYS_stop_measuring   28
 #define SYS_print_info       29
@@ -34,3 +34,6 @@
 #define SYS_rwlock_release_read   33
 #define SYS_rwlock_acquire_write  34
 #define SYS_rwlock_release_write  35
+#define SYS_getlockstat 36
+#define SYS_plock_acquire 37 
+#define SYS_plock_release 38 

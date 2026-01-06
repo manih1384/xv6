@@ -15,6 +15,14 @@ initlock(struct spinlock *lk, char *name)
   lk->name = name;
   lk->locked = 0;
   lk->cpu = 0;
+
+  for (int i = 0; i < NCPU; i++) {
+    lk->acq_count[i] = 0;
+    lk->total_spins[i] = 0;
+  }
+  // for (int i = 0; i < NCPU; i++) {
+  //   cprintf("\n--------\nSet acq_count to:%d, and total_spins to:%d, For CPU:%d\n--------\n",lk->acq_count[i], lk->total_spins[i], i);
+  // }
 }
 
 // Acquire the lock.
@@ -28,9 +36,17 @@ acquire(struct spinlock *lk)
   if(holding(lk))
     panic("acquire");
 
+  int id = cpuid();
+  uint64 spins = 0;
   // The xchg is atomic.
-  while(xchg(&lk->locked, 1) != 0)
-    ;
+  while(xchg(&lk->locked, 1) != 0) {
+    spins++; // Increment spin count while waiting
+  }
+  lk->acq_count[id]++; // Lock acquired!
+  lk->total_spins[id] += spins;
+  // if(lk->acq_count[id] % 100 == 0) {
+  //   print_lock_stats(lk);
+  // }
 
   // Tell the C compiler and the processor to not move loads or stores
   // past this point, to ensure that the critical section's memory
@@ -124,3 +140,16 @@ popcli(void)
     sti();
 }
 
+// void
+// print_lock_stats(struct spinlock *lk)
+// {
+//   int i;
+//   cprintf("Lock: %s\n", lk->name);
+//   cprintf("CPU\tAcquires\tSpin Loops\n");
+  
+//   for(i = 0; i < NCPU; i++){
+//     if(lk->acq_count[i] > 0 || lk->total_spins[i] > 0) {
+//       cprintf("%d\t%d\t\t%d\n", i, lk->acq_count[i], lk->total_spins[i]);
+//     }
+//   }
+// }

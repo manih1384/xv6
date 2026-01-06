@@ -124,6 +124,7 @@ void            load_balance_on_timer(int);
 int             start_measuring_impl(void);
 int             stop_measuring_impl(void);
 int             print_info_impl(void);
+int             get_ptable_stats(uint64*);
 
 // swtch.S
 void            swtch(struct context**, struct context*);
@@ -136,6 +137,7 @@ void            initlock(struct spinlock*, char*);
 void            release(struct spinlock*);
 void            pushcli(void);
 void            popcli(void);
+// void            print_lock_stats(struct spinlock *lk);
 
 // sleeplock.c
 void            acquiresleep(struct sleeplock*);
