@@ -42,8 +42,8 @@ int plock_acquire(void);
 int plock_release(void);
 int newpt_write(uint va, int value);
 int newpt_read(uint va);
-
-
+int newpt_report(int start_ticks);
+int newpt_setpolicy(int policy);   
 
 // ulib.c
 int stat(const char*, struct stat*);
@@ -58,3 +58,9 @@ void* memset(void*, int, uint);
 void* malloc(uint);
 void free(void*);
 int atoi(const char*);
+
+
+#define NEWPT_FIFO   0
+#define NEWPT_LRU    1
+#define NEWPT_LFU    2
+#define NEWPT_CLOCK  3

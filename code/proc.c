@@ -425,6 +425,7 @@ void exit(void)
   if (curproc == initproc)
     panic("init exiting");
 
+  new_pt_invalidate_pid(curproc->pid);
   // Close all open files.
   for (fd = 0; fd < NOFILE; fd++)
   {

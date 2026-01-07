@@ -121,6 +121,8 @@ extern int sys_plock_release(void);
 
 extern int sys_newpt_write(void);
 extern int sys_newpt_read(void);
+extern int sys_newpt_report(void);
+extern int sys_newpt_setpolicy(void);
 
 static int (*syscalls[])(void) = {
     [SYS_fork] sys_fork,
@@ -163,6 +165,9 @@ static int (*syscalls[])(void) = {
     [SYS_plock_release] sys_plock_release,
     [SYS_newpt_write] sys_newpt_write,
     [SYS_newpt_read] sys_newpt_read,
+    [SYS_newpt_report] sys_newpt_report,
+    [SYS_newpt_setpolicy] sys_newpt_setpolicy,
+    
 
 };
 

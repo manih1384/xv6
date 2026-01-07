@@ -62,6 +62,7 @@ int new_pt_pick_victim(void);
 extern uint new_pt_hits;
 extern uint new_pt_misses;
 
+void new_pt_invalidate_pid(int pid);
 
 
 

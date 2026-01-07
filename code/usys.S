@@ -47,6 +47,8 @@ SYSCALL(plock_acquire)
 SYSCALL(plock_release) 
 SYSCALL(newpt_write)
 SYSCALL(newpt_read)
+SYSCALL(newpt_report)
+SYSCALL(newpt_setpolicy)
 
 
 

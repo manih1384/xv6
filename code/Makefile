@@ -189,7 +189,11 @@ UPROGS=\
 	_RRtest\
 	_FCFStest\
 	_schedtest\
-	_test_newpt\
+	_memtest_seq\
+	_memtest_loop\
+	_memtest_freq\
+	_memtest_mix\
+# 	_test_newpt\
 # 	_testsleeplock\
 # 	_testrwlock\
 # 	_lockstat_test\

@@ -201,3 +201,5 @@ void            clearpteu(pde_t *pgdir, char *uva);
 // new_ptable.c
 void            new_ptable_init(void);
 void            new_ptable_dump(void);
+void            new_pt_invalidate_pid(int pid);
+

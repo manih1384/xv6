@@ -11,67 +11,62 @@
 #include "plock.h"
 #include "new_ptable.h"
 
-int
-sys_fork(void)
+int sys_fork(void)
 {
   return fork();
 }
 
-int
-sys_exit(void)
+int sys_exit(void)
 {
   exit();
-  return 0;  // not reached
+  return 0; // not reached
 }
 
-int
-sys_wait(void)
+int sys_wait(void)
 {
   return wait();
 }
 
-int
-sys_kill(void)
+int sys_kill(void)
 {
   int pid;
 
-  if(argint(0, &pid) < 0)
+  if (argint(0, &pid) < 0)
     return -1;
   return kill(pid);
 }
 
-int
-sys_getpid(void)
+int sys_getpid(void)
 {
   return myproc()->pid;
 }
 
-int
-sys_sbrk(void)
+int sys_sbrk(void)
 {
   int addr;
   int n;
 
-  if(argint(0, &n) < 0)
+  if (argint(0, &n) < 0)
     return -1;
   addr = myproc()->sz;
-  if(growproc(n) < 0)
+  if (growproc(n) < 0)
     return -1;
   return addr;
 }
 
-int
-sys_sleep(void)
+int sys_sleep(void)
 {
   int n;
   uint ticks0;
 
-  if(argint(0, &n) < 0)
+  if (argint(0, &n) < 0)
     return -1;
   acquire(&tickslock);
   ticks0 = ticks;
-  while(ticks - ticks0 < n){
-    if(myproc()->killed){
+  while (ticks - ticks0 < n)
+  {
+    if (myproc()->killed)
+    {
       release(&tickslock);
       return -1;
     }
@@ -83,8 +78,7 @@ sys_sleep(void)
 
 // return how many clock tick interrupts have occurred
 // since start.
-int
-sys_uptime(void)
+int sys_uptime(void)
 {
   uint xticks;
 
@@ -93,8 +87,6 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
-
-
 
 // it is void because we need to fetch them manually in a system call, from registers or stack
 int sys_simple_arithmetic(void)
@@ -111,18 +103,20 @@ int sys_simple_arithmetic(void)
   return result;
 }
 
-int sys_start_measuring(void) {
+int sys_start_measuring(void)
+{
   return start_measuring_impl();
 }
 
-int sys_stop_measuring(void) {
+int sys_stop_measuring(void)
+{
   return stop_measuring_impl();
 }
 
-int sys_print_info(void) {
+int sys_print_info(void)
+{
   return print_info_impl();
 }
-
 
 // static struct sleeplock testlock;
 // static int testlock_initialized = 0;
@@ -142,14 +136,13 @@ int sys_print_info(void) {
 
 //   pid = sys_fork();
 
-
 //   if(pid < 0){
 //     releasesleep(&testlock);
 //     return -1;
 //   }
 //   if(pid == 0){
 //     cprintf("testsleeplock: child attempting to release lock (pid=%d)\n", myproc()->pid);
-     
+
 //     // This SHOULD panic:
 //     releasesleep(&testlock);
 
@@ -166,21 +159,20 @@ int sys_print_info(void) {
 //   return 0;
 // }
 
-
 static struct sleeplock testlock;
 static int testlock_initialized = 0;
 
 static void
 init_testlock(void)
 {
-  if(!testlock_initialized){
+  if (!testlock_initialized)
+  {
     initsleeplock(&testlock, "testlock");
     testlock_initialized = 1;
   }
 }
 
-int
-sys_testlock_acquire(void)
+int sys_testlock_acquire(void)
 {
   init_testlock();
   acquiresleep(&testlock);
@@ -188,16 +180,13 @@ sys_testlock_acquire(void)
   return 0;
 }
 
-int
-sys_testlock_release(void)
+int sys_testlock_release(void)
 {
   init_testlock();
   cprintf("testlock: release attempt by pid=%d\n", myproc()->pid);
-  releasesleep(&testlock);   // CHILD SHOULD PANIC HERE
+  releasesleep(&testlock); // CHILD SHOULD PANIC HERE
   return 0;
 }
-
-
 
 static struct rwlock testrw;
 static int testrw_initialized = 0;
@@ -205,131 +194,196 @@ static int testrw_initialized = 0;
 static void
 init_rwlock_if_needed(void)
 {
-  if(!testrw_initialized){
+  if (!testrw_initialized)
+  {
     rwlock_init(&testrw, "testrw");
     testrw_initialized = 1;
   }
 }
 
-int
-sys_rwlock_acquire_read(void)
+int sys_rwlock_acquire_read(void)
 {
   init_rwlock_if_needed();
   rwlock_acquire_read(&testrw);
   return 0;
 }
 
-int
-sys_rwlock_release_read(void)
+int sys_rwlock_release_read(void)
 {
   rwlock_release_read(&testrw);
   return 0;
 }
 
-int
-sys_rwlock_acquire_write(void)
+int sys_rwlock_acquire_write(void)
 {
   init_rwlock_if_needed();
   rwlock_acquire_write(&testrw);
   return 0;
 }
 
-int
-sys_rwlock_release_write(void)
+int sys_rwlock_release_write(void)
 {
   rwlock_release_write(&testrw);
   return 0;
 }
 
-int
-sys_getlockstat(void)
+int sys_getlockstat(void)
 {
   uint64 *score;
 
   // Retrieve argument (pointer)
-  if(argptr(0, (void*)&score, sizeof(uint64)*NCPU) < 0)
+  if (argptr(0, (void *)&score, sizeof(uint64) * NCPU) < 0)
     return -1;
 
   // Call the helper in proc.c
   return get_ptable_stats(score);
 }
 
-
 extern struct plock p_lock;
-void plock_acquire(struct plock*, int);
-void plock_release(struct plock*);
+void plock_acquire(struct plock *, int);
+void plock_release(struct plock *);
 
-int
-sys_plock_acquire(void)
+int sys_plock_acquire(void)
 {
   int priority;
-  if(argint(0, &priority) < 0)
+  if (argint(0, &priority) < 0)
     return -1;
 
   plock_acquire(&p_lock, priority);
   return 0;
 }
 
-int
-sys_plock_release(void)
+int sys_plock_release(void)
 {
   plock_release(&p_lock);
   return 0;
 }
 
-
-int
-sys_newpt_write(void)
+int sys_newpt_write(void)
 {
   int va;
   int value;
   struct proc *p = myproc();
 
-  if(argint(0, &va) < 0) return -1;
-  if(argint(1, &value) < 0) return -1;
+  if (argint(0, &va) < 0)
+    return -1;
+  if (argint(1, &value) < 0)
+    return -1;
 
   acquire(&new_pt.lock);
   int slot = new_pt_check_page(p, (uint)va);
-  if(slot < 0){
+  if (slot < 0)
+  {
     release(&new_pt.lock);
     return -1;
   }
 
   uint offset = ((uint)va) % PGSIZE;
-  if(offset + sizeof(int) > PGSIZE){
+  if (offset + sizeof(int) > PGSIZE)
+  {
     release(&new_pt.lock);
     return -1;
   }
 
-  *(int*)(new_pt.e[slot].frame_kva + offset) = value;
+  *(int *)(new_pt.e[slot].frame_kva + offset) = value;
 
   release(&new_pt.lock);
   return 0;
 }
 
-int
-sys_newpt_read(void)
+int sys_newpt_read(void)
 {
   int va;
   struct proc *p = myproc();
 
-  if(argint(0, &va) < 0) return -1;
+  if (argint(0, &va) < 0)
+    return -1;
 
   acquire(&new_pt.lock);
   int slot = new_pt_check_page(p, (uint)va);
-  if(slot < 0){
+  if (slot < 0)
+  {
     release(&new_pt.lock);
     return -1;
   }
 
   uint offset = ((uint)va) % PGSIZE;
-  if(offset + sizeof(int) > PGSIZE){
+  if (offset + sizeof(int) > PGSIZE)
+  {
     release(&new_pt.lock);
     return -1;
   }
 
-  int value = *(int*)(new_pt.e[slot].frame_kva + offset);
+  int value = *(int *)(new_pt.e[slot].frame_kva + offset);
 
   release(&new_pt.lock);
   return value;
+}
+
+int sys_newpt_report(void)
+{
+  int start;
+  if (argint(0, &start) < 0)
+    return -1;
+
+  acquire(&new_pt.lock);
+  uint hits = new_pt_hits;
+  uint misses = new_pt_misses;
+  release(&new_pt.lock);
+
+  uint accesses = hits + misses;
+  uint ratio = 0;
+  if (accesses > 0)
+    ratio = (hits * 100) / accesses;
+
+  uint end;
+  acquire(&tickslock);
+  end = ticks;
+  release(&tickslock);
+
+  int runtime = (int)end - start;
+  if (runtime < 0)
+    runtime = 0;
+
+  cprintf("---new_pt metrics---\n");
+  cprintf("count hit: %d\n", hits);
+  cprintf("ratio hit: %d%%\n", ratio);
+  cprintf("runtime: %d ticks\n", runtime);
+
+  return 0;
+}
+
+int sys_newpt_setpolicy(void)
+{
+  // this function is made for testing later
+  int pol;
+  if (argint(0, &pol) < 0)
+    return -1;
+
+  if (pol < NEWPT_FIFO || pol > NEWPT_CLOCK)
+    return -1;
+
+  acquire(&new_pt.lock);
+  new_pt_policy = pol;
+
+  // reset stats per run
+  new_pt_hits = 0;
+  new_pt_misses = 0;
+  new_pt.time = 0;
+  new_pt.hand = 0;
+
+  // clear refbits/counters so each run is fair
+  for (int i = 0; i < NEW_PT_NFRAMES; i++)
+  {
+
+    new_pt.e[i].valid = 0;
+
+    new_pt.e[i].load_time = 0;
+    new_pt.e[i].last_used_time = 0;
+    new_pt.e[i].use_count = 0;
+    new_pt.e[i].refbit = 0;
+  }
+
+  release(&new_pt.lock);
+  return 0;
 }

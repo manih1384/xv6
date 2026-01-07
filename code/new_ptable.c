@@ -176,7 +176,7 @@ int new_pt_check_page(struct proc *p, uint va)
   new_pt.e[freei].use_count = 1;
   new_pt.e[freei].refbit = 1;
 
-  new_ptable_dump();
+  // new_ptable_dump();
 
   return freei;
 }
@@ -271,4 +271,26 @@ writeback_victim(struct new_pt_entry *v)
     return -1;
   memmove(dst, v->frame_kva, PGSIZE);
   return 0;
+}
+
+void
+new_pt_invalidate_pid(int pid)
+{
+  acquire(&new_pt.lock);
+
+  for(int i = 0; i < NEW_PT_NFRAMES; i++){
+    if(new_pt.e[i].valid && new_pt.e[i].pid == pid){
+      new_pt.e[i].valid = 0;
+
+      // just in case we clear other fields 
+      new_pt.e[i].pid = -1;
+      new_pt.e[i].vpn = 0;
+      new_pt.e[i].load_time = 0;
+      new_pt.e[i].last_used_time = 0;
+      new_pt.e[i].use_count = 0;
+      new_pt.e[i].refbit = 0;
+    }
+  }
+
+  release(&new_pt.lock);
 }

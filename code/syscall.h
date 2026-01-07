@@ -39,3 +39,5 @@
 #define SYS_plock_release 38 
 #define SYS_newpt_write  39
 #define SYS_newpt_read   40
+#define SYS_newpt_report  41
+#define SYS_newpt_setpolicy 42   
