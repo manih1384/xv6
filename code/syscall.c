@@ -116,8 +116,12 @@ extern int sys_rwlock_acquire_write(void);
 extern int sys_rwlock_release_write(void);
 
 extern int sys_getlockstat(void);
-extern int sys_plock_acquire(void); 
-extern int sys_plock_release(void); 
+extern int sys_plock_acquire(void);
+extern int sys_plock_release(void);
+
+extern int sys_newpt_write(void);
+extern int sys_newpt_read(void);
+
 static int (*syscalls[])(void) = {
     [SYS_fork] sys_fork,
     [SYS_exit] sys_exit,
@@ -154,9 +158,12 @@ static int (*syscalls[])(void) = {
     [SYS_rwlock_release_read] sys_rwlock_release_read,
     [SYS_rwlock_acquire_write] sys_rwlock_acquire_write,
     [SYS_rwlock_release_write] sys_rwlock_release_write,
-    [SYS_getlockstat]   sys_getlockstat,
+    [SYS_getlockstat] sys_getlockstat,
     [SYS_plock_acquire] sys_plock_acquire,
-    [SYS_plock_release] sys_plock_release
+    [SYS_plock_release] sys_plock_release,
+    [SYS_newpt_write] sys_newpt_write,
+    [SYS_newpt_read] sys_newpt_read,
+
 };
 
 void syscall(void)

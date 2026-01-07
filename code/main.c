@@ -35,6 +35,8 @@ main(void)
   startothers();   // start other processors
   kinit2(P2V(4*1024*1024), P2V(PHYSTOP)); // must come after startothers()
   new_ptable_init();
+  new_ptable_dump();
+
   userinit();      // first user process
   mpmain();        // finish this processor's setup
 }

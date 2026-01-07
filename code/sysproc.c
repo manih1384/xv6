@@ -9,6 +9,8 @@
 #include "sleeplock.h"
 #include "rwlock.h"
 #include "plock.h"
+#include "new_ptable.h"
+
 int
 sys_fork(void)
 {
@@ -273,4 +275,61 @@ sys_plock_release(void)
 {
   plock_release(&p_lock);
   return 0;
+}
+
+
+int
+sys_newpt_write(void)
+{
+  int va;
+  int value;
+  struct proc *p = myproc();
+
+  if(argint(0, &va) < 0) return -1;
+  if(argint(1, &value) < 0) return -1;
+
+  acquire(&new_pt.lock);
+  int slot = new_pt_check_page(p, (uint)va);
+  if(slot < 0){
+    release(&new_pt.lock);
+    return -1;
+  }
+
+  uint offset = ((uint)va) % PGSIZE;
+  if(offset + sizeof(int) > PGSIZE){
+    release(&new_pt.lock);
+    return -1;
+  }
+
+  *(int*)(new_pt.e[slot].frame_kva + offset) = value;
+
+  release(&new_pt.lock);
+  return 0;
+}
+
+int
+sys_newpt_read(void)
+{
+  int va;
+  struct proc *p = myproc();
+
+  if(argint(0, &va) < 0) return -1;
+
+  acquire(&new_pt.lock);
+  int slot = new_pt_check_page(p, (uint)va);
+  if(slot < 0){
+    release(&new_pt.lock);
+    return -1;
+  }
+
+  uint offset = ((uint)va) % PGSIZE;
+  if(offset + sizeof(int) > PGSIZE){
+    release(&new_pt.lock);
+    return -1;
+  }
+
+  int value = *(int*)(new_pt.e[slot].frame_kva + offset);
+
+  release(&new_pt.lock);
+  return value;
 }

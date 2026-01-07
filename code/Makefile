@@ -189,10 +189,11 @@ UPROGS=\
 	_RRtest\
 	_FCFStest\
 	_schedtest\
-	_testsleeplock\
-	_testrwlock\
-	_lockstat_test\
-	_test_plock\
+	_test_newpt\
+# 	_testsleeplock\
+# 	_testrwlock\
+# 	_lockstat_test\
+# 	_test_plock\
 # 	_arithmatic\
 # 	_make_duplicate\
 # 	_showfamilytest\

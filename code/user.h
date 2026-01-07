@@ -40,6 +40,9 @@ int rwlock_release_write(void);
 int getlockstat(uint64 *score);
 int plock_acquire(void);
 int plock_release(void);
+int newpt_write(uint va, int value);
+int newpt_read(uint va);
+
 
 
 // ulib.c

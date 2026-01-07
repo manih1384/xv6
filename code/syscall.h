@@ -37,3 +37,5 @@
 #define SYS_getlockstat 36
 #define SYS_plock_acquire 37 
 #define SYS_plock_release 38 
+#define SYS_newpt_write  39
+#define SYS_newpt_read   40

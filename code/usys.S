@@ -45,6 +45,8 @@ SYSCALL(rwlock_release_write)
 SYSCALL(getlockstat)
 SYSCALL(plock_acquire) 
 SYSCALL(plock_release) 
+SYSCALL(newpt_write)
+SYSCALL(newpt_read)
 
 
 
