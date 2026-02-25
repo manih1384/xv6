@@ -8,7 +8,6 @@ This project was successfully developed and maintained by our core OS team:
 - Shayan Maleki
 - Hamid Mahmoudi
 - Mani Hosseini
-- [Your Name]
 
 ## Development Phases
 The evolution of this operating system was divided into five main phases. Below is a high-level summary of the challenges we tackled and the features we implemented in each step:
