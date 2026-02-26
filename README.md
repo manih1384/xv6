@@ -4,10 +4,11 @@
 This repository contains a progressively enhanced version of the **xv6 operating system** (a simple, Unix-like teaching OS developed by MIT). Over the course of five development phases, we integrated modern operating system capabilities into the core, transforming the baseline xv6 into a more robust and feature-rich environment. Since each phase was built upon the previous one, this repository represents the final, cumulative codebase of our fully integrated operating system.
 
 ## Team Members
-This project was successfully developed and maintained by our core OS team:
-- Shayan Maleki
-- Hamid Mahmoudi
-- Mani Hosseini
+This project was successfully developed and maintained by our OS team:
+- [Shayan Maleki](https://github.com/maleki-shayan)
+- [Hamid Mahmoudi](https://github.com/hmdmhmd2004)
+- [Mani Hosseini](https://github.com/manih1384)
+
 
 ## Development Phases
 The evolution of this operating system was divided into five main phases. Below is a high-level summary of the challenges we tackled and the features we implemented in each step:
